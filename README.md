@@ -26,7 +26,7 @@ wrist HR sensor can be used such that fan speed increases as HR does.
 1.  Open in Android Studio
 1.  Build
 1.  Deploy to your Wear OS device.
-1.  _Hop on your bike trainer, launch the app on your watch, and power on the fan!_
+1.  _Hop on your bike trainer, launch the app on your watch. Click to power on the fan!_
 
 ## License
 
