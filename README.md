@@ -26,7 +26,18 @@ wrist HR sensor can be used such that fan speed increases as HR does.
 1.  Open in Android Studio
 1.  Build
 1.  Deploy to your Wear OS device.
-1.  _Hop on your bike trainer, launch the app on your watch. Click to power on the fan!_
+1.  _Hop on your bike trainer, launch the app on your watch, and power on the fan!_
+
+## Setting up HR zones
+
+The bottom drawer on opening app can be swiped up to reveal configuration
+options for the HR tracking behaviour. This allows you to configure two points:
+A HR/speed min and a HR/speed max.
+
+-  When your HR is at or below the min, the speed will be set to the min value.
+-  When your HR is at or above the max, the speed will be set to the max value.
+-  When your HR is between the min and max, the speed will operate on a linear
+sliding scale between the min and max speed, according to your HR value.
 
 ## License
 
