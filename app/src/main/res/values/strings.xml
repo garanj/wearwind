@@ -7,7 +7,7 @@
 
     <string name="fan_hr_min">Fan/HR min</string>
     <string name="fan_hr_max">Fan/HR max</string>
-    <string name="hr_threshold">HR threshold</string>
+    <string name="hr_threshold">HR</string>
     <string name="speed">Speed</string>
     <string name="max">Max</string>
 </resources>
