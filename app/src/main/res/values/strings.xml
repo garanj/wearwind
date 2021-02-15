@@ -3,4 +3,11 @@
     <string name="use_hr">Use HR</string>
     <string name="connect">Connect</string>
     <string name="initial_metric_values">0</string>
+    <string name="menu_title">Set max/min</string>
+
+    <string name="fan_hr_min">Fan/HR min</string>
+    <string name="fan_hr_max">Fan/HR max</string>
+    <string name="hr_threshold">HR threshold</string>
+    <string name="speed">Speed</string>
+    <string name="max">Max</string>
 </resources>

@@ -1,0 +1,8 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:icon="@drawable/ic_baseline_arrow_circle_up_24"
+          android:title="@string/fan_hr_max" />
+    <item
+        android:icon="@drawable/ic_baseline_arrow_circle_down_24"
+          android:title="@string/fan_hr_min" />
+</menu>

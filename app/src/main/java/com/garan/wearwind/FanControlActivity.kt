@@ -1,23 +1,8 @@
-/*
- * Copyright 2019 Punch Through Design LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.garan.wearwind
 
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGattCharacteristic
+import android.content.Context
 import android.graphics.Color
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -40,15 +25,6 @@ const val SLOW_SWIPE_UP = -1000
 const val FAST_SWIPE_DOWN = 5000
 const val SLOW_SWIPE_DOWN = 1000
 
-// HR fan control is very basic: When HR is at or below the minimum threshold, the fan speed will be
-// set to FAN_SPEED_MIN. When the HR is at or above the maximum threshold, the fan speed will be set
-// to FAN_SPEED_MAX. Between HR_MIN_THRESHOLD and HR_MAX_THRESHOLD, the fan speed will be
-// interpolated between FAN_SPEED_MIN and FAN_SPEED_MAX.
-const val HR_MIN_THRESHOLD = 80
-const val HR_MAX_THRESHOLD = 160
-
-const val FAN_SPEED_MIN = 20
-const val FAN_SPEED_MAX = 50
 
 /**
  * Activity for fan speed control, either manually or linked to heart rate.
@@ -62,6 +38,11 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
     private val sensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
     private val sensor by lazy { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) }
     private var listener: SensorEventListener? = null
+
+    private var hrMax: Int = 0
+    private var hrMin: Int = 0
+    private var speedMax: Int = 0
+    private var speedMin: Int = 0
 
     private val characteristics by lazy {
         ConnectionManager.servicesOnDevice(device)?.flatMap { service ->
@@ -85,6 +66,7 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
             ?: error("Missing BluetoothDevice from ConnectActivity!")
 
         useHeartRate = intent.getBooleanExtra(ConnectActivity.USE_HEART_RATE, false)
+        loadHrPrefs()
 
         fanCharacteristic = characteristics.find { it.uuid == CHARACTERISTIC_UUID }
 
@@ -119,6 +101,14 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
         ConnectionManager.unregisterListener(connectionEventListener)
         ConnectionManager.teardownConnection(device)
         super.onDestroy()
+    }
+
+    private fun loadHrPrefs() {
+        val sharedPref = getPreferences(Context.MODE_PRIVATE)
+        hrMax = sharedPref.getInt(MinMaxActivity.HR_MAX_KEY, MinMaxActivity.HR_MAX_DEFAULT)
+        hrMin = sharedPref.getInt(MinMaxActivity.HR_MIN_KEY, MinMaxActivity.HR_MIN_DEFAULT)
+        speedMin = sharedPref.getInt(MinMaxActivity.SPEED_MAX_KEY, MinMaxActivity.SPEED_MAX_DEFAULT)
+        speedMax = sharedPref.getInt(MinMaxActivity.SPEED_MIN_KEY, MinMaxActivity.SPEED_MIN_DEFAULT)
     }
 
     private fun setHeartRateColors() {
@@ -173,13 +163,13 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
 
     private fun getFanSpeedForHeartRate(heartRate: Int): Int {
         return when {
-            heartRate < HR_MIN_THRESHOLD -> FAN_SPEED_MIN
-            heartRate > HR_MAX_THRESHOLD -> FAN_SPEED_MAX
+            heartRate < hrMin -> speedMin
+            heartRate > hrMax -> speedMax
             else -> {
                 val hrPc =
-                    (heartRate - HR_MIN_THRESHOLD).toFloat() / (HR_MAX_THRESHOLD - HR_MIN_THRESHOLD)
-                val fanRange = FAN_SPEED_MAX - FAN_SPEED_MIN
-                (FAN_SPEED_MIN + hrPc * fanRange).toInt()
+                    (heartRate - hrMin).toFloat() / (hrMax - hrMin)
+                val fanRange = speedMax - speedMin
+                (speedMin + hrPc * fanRange).toInt()
             }
         }
     }

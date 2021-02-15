@@ -1,32 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.garan.wearwind">
+    package="com.garan.wearwind"
+    >
+
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <uses-feature
+        android:name="android.hardware.type.watch"
+        android:required="true"
+        />
 
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.BODY_SENSORS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <uses-feature
         android:name="android.hardware.bluetooth_le"
-        android:required="true" />
-
-    <uses-feature
-        android:name="android.hardware.type.watch"
-        android:required="true" />
+        android:required="true"
+        />
 
     <application
         android:allowBackup="false"
         android:icon="@drawable/fan_white_24"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        tools:ignore="GoogleAppIndexingWarning">
-
+        tools:ignore="GoogleAppIndexingWarning"
+        >
         <uses-library
             android:name="com.google.android.wearable"
-            android:required="true" />
+            android:required="true"
+            />
 
         <!--
                Set to true if your app is Standalone, that is, it does not require the handheld
@@ -34,14 +40,18 @@
         -->
         <meta-data
             android:name="com.google.android.wearable.standalone"
-            android:value="true" />
+            android:value="true"
+            />
 
-        <activity android:name=".FanControlActivity"  />
+        <activity android:name=".MinMaxActivity" />
+        <activity android:name=".FanControlActivity" />
         <activity android:name=".ConnectActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
     </application>
+
 </manifest>
