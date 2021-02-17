@@ -31,8 +31,6 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
     private lateinit var device: BluetoothDevice
     private lateinit var binding: ActivityFanControlBinding
 
-
-    // License
     private var useHeartRate: Boolean = false
 
     private val sensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
