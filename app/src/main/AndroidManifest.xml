@@ -43,6 +43,7 @@
             android:value="true"
             />
 
+        <activity android:name=".AboutActivity" />
         <activity android:name=".MinMaxActivity" />
         <activity android:name=".FanControlActivity" />
         <activity android:name=".ConnectActivity">

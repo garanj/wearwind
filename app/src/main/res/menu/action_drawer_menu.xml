@@ -5,4 +5,7 @@
     <item
         android:icon="@drawable/ic_baseline_arrow_circle_down_24"
           android:title="@string/fan_hr_min" />
+    <item
+        android:icon="@drawable/ic_baseline_article_24"
+        android:title="@string/license" />
 </menu>

@@ -3,7 +3,6 @@ package com.garan.wearwind
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.util.Log
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -20,6 +19,7 @@ class MinMaxActivity : FragmentActivity() {
         const val HR_MIN_KEY = "hr_min"
         const val SPEED_MAX_KEY = "speed_max"
         const val SPEED_MIN_KEY = "speed_min"
+        const val HR_PREFERENCES_KEY = "hr_preferences_key"
 
         const val HR_MAX_DEFAULT = 160
         const val HR_MIN_DEFAULT = 80
@@ -39,10 +39,10 @@ class MinMaxActivity : FragmentActivity() {
         setContentView(binding.root)
 
         val boundaryName =
-            intent.getStringExtra(ConnectActivity.BOUNDARY) ?: getString(R.string.fan_hr_max)
+                intent.getStringExtra(ConnectActivity.BOUNDARY) ?: getString(R.string.fan_hr_max)
         binding.heading.text = boundaryName
 
-        sharedPref = getPreferences(Context.MODE_PRIVATE)
+        sharedPref = getSharedPreferences(HR_PREFERENCES_KEY, Context.MODE_PRIVATE)
         val hrMaxBound = sharedPref.getInt(HR_MAX_KEY, HR_MAX_DEFAULT)
         val hrMinBound = sharedPref.getInt(HR_MIN_KEY, HR_MIN_DEFAULT)
         val speedMaxBound = sharedPref.getInt(SPEED_MAX_KEY, SPEED_MAX_DEFAULT)
@@ -57,14 +57,14 @@ class MinMaxActivity : FragmentActivity() {
             else -> speedValues.indexOf(speedMinBound)
         }
         binding.speedSpinner.adapter =
-            ArrayAdapter(this, android.R.layout.simple_list_item_1, speedValues)
+                ArrayAdapter(this, android.R.layout.simple_list_item_1, speedValues)
         binding.speedSpinner.setSelection(speedIndex)
         binding.speedSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long
             ) {
                 saveSpeedBoundary(boundaryName, speedValues[position])
             }
@@ -81,14 +81,14 @@ class MinMaxActivity : FragmentActivity() {
             else -> hrValues.indexOf(hrMinBound)
         }
         binding.hrSpinner.adapter =
-            ArrayAdapter(this, android.R.layout.simple_list_item_1, hrValues)
+                ArrayAdapter(this, android.R.layout.simple_list_item_1, hrValues)
         binding.hrSpinner.setSelection(hrIndex)
         binding.hrSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long
             ) {
                 saveHrBoundary(boundaryName, hrValues[position])
             }
@@ -105,7 +105,6 @@ class MinMaxActivity : FragmentActivity() {
             else -> HR_MIN_KEY
         }
         sharedPref.edit(commit = true) { putInt(key, value) }
-        Log.i(TAG, "Saving $key $value")
     }
 
     private fun saveSpeedBoundary(boundaryName: String, value: Int) {
@@ -114,6 +113,5 @@ class MinMaxActivity : FragmentActivity() {
             else -> SPEED_MIN_KEY
         }
         sharedPref.edit(commit = true) { putInt(key, value) }
-        Log.i(TAG, "Saving $key $value")
     }
 }

@@ -26,8 +26,8 @@ const val TAG = "WearWind"
  */
 class ConnectActivity : FragmentActivity() {
     private val requiredPermissions = arrayOf(
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.BODY_SENSORS
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.BODY_SENSORS
     )
     private val bluetoothAdapter: BluetoothAdapter by lazy {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -40,8 +40,8 @@ class ConnectActivity : FragmentActivity() {
     }
 
     private val scanSettings = ScanSettings.Builder()
-        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-        .build()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
 
     private var isConnected = false
         set(value) {
@@ -50,9 +50,15 @@ class ConnectActivity : FragmentActivity() {
         }
 
     private val menuItemClickListener = MenuItem.OnMenuItemClickListener { item ->
-        Intent(this@ConnectActivity, MinMaxActivity::class.java).also {
-            it.putExtra(BOUNDARY, item.title)
-            startActivity(it)
+        if (item.title == getString(R.string.license)) {
+            Intent(this@ConnectActivity, AboutActivity::class.java).also {
+                startActivity(it)
+            }
+        } else {
+            Intent(this@ConnectActivity, MinMaxActivity::class.java).also {
+                it.putExtra(BOUNDARY, item.title)
+                startActivity(it)
+            }
         }
         true
     }
@@ -62,14 +68,16 @@ class ConnectActivity : FragmentActivity() {
         binding = ActivityConnectBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.scanButton.setOnClickListener { if (isConnected) stopBleScan() else startBleScan() }
+        binding.scanButton.setOnClickListener {
+            if (isConnected) stopBleScan() else startBleScan()
+        }
 
         val launcher =
-            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-                result.entries.find { !it.value }?.let {
-                    Log.i(TAG, "Permission not granted!")
+                registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+                    result.entries.find { !it.value }?.let {
+                        Log.i(TAG, "Permission not granted!")
+                    }
                 }
-            }
 
         launcher.launch(requiredPermissions)
 

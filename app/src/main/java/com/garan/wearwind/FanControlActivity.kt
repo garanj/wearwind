@@ -3,17 +3,15 @@ package com.garan.wearwind
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
-import android.graphics.Color
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
 import android.util.Log
-import android.view.GestureDetector
-import android.view.MotionEvent
+import androidx.activity.viewModels
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
 import androidx.wear.ambient.AmbientModeSupport
 import com.garan.wearwind.databinding.ActivityFanControlBinding
 import com.punchthrough.ble.ConnectionEventListener
@@ -32,12 +30,16 @@ const val SLOW_SWIPE_DOWN = 1000
 class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvider {
     private lateinit var device: BluetoothDevice
     private lateinit var binding: ActivityFanControlBinding
-    private val metric = MutableLiveData(0)
+
+
+    // License
     private var useHeartRate: Boolean = false
 
     private val sensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
     private val sensor by lazy { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) }
     private var listener: SensorEventListener? = null
+
+    private val model: FanControlViewModel by viewModels()
 
     private var hrMax: Int = 0
     private var hrMin: Int = 0
@@ -63,9 +65,18 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
 
         // Headwind device, as connected to in {@code ConnectActivity}
         device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-            ?: error("Missing BluetoothDevice from ConnectActivity!")
+                ?: error("Missing BluetoothDevice from ConnectActivity!")
 
         useHeartRate = intent.getBooleanExtra(ConnectActivity.USE_HEART_RATE, false)
+
+        val fragment = when (useHeartRate) {
+            true -> HrFragment()
+            else -> ManualFragment()
+        }
+        supportFragmentManager.beginTransaction()
+                .replace(binding.fragmentContainerView.id, fragment)
+                .commit()
+
         loadHrPrefs()
 
         fanCharacteristic = characteristics.find { it.uuid == CHARACTERISTIC_UUID }
@@ -76,17 +87,13 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
             ConnectionManager.writeCharacteristic(device, it, POWER_ON)
         }
 
-        metric.observe(this, {
-            binding.metric.text = "$it"
-        })
-
         if (useHeartRate) {
             initializeHeartRateSensor()
-            setHeartRateColors()
-        } else {
-            // Swipe control only available in manual mode.
-            initializeSwipe()
         }
+
+        model.speedToDevice.observe(this, Observer {
+            setSpeed(it)
+        })
     }
 
     override fun onDestroy() {
@@ -104,15 +111,11 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
     }
 
     private fun loadHrPrefs() {
-        val sharedPref = getPreferences(Context.MODE_PRIVATE)
+        val sharedPref = getSharedPreferences(MinMaxActivity.HR_PREFERENCES_KEY, Context.MODE_PRIVATE)
         hrMax = sharedPref.getInt(MinMaxActivity.HR_MAX_KEY, MinMaxActivity.HR_MAX_DEFAULT)
         hrMin = sharedPref.getInt(MinMaxActivity.HR_MIN_KEY, MinMaxActivity.HR_MIN_DEFAULT)
-        speedMin = sharedPref.getInt(MinMaxActivity.SPEED_MAX_KEY, MinMaxActivity.SPEED_MAX_DEFAULT)
-        speedMax = sharedPref.getInt(MinMaxActivity.SPEED_MIN_KEY, MinMaxActivity.SPEED_MIN_DEFAULT)
-    }
-
-    private fun setHeartRateColors() {
-        binding.metric.setTextColor(Color.RED)
+        speedMax = sharedPref.getInt(MinMaxActivity.SPEED_MAX_KEY, MinMaxActivity.SPEED_MAX_DEFAULT)
+        speedMin = sharedPref.getInt(MinMaxActivity.SPEED_MIN_KEY, MinMaxActivity.SPEED_MIN_DEFAULT)
     }
 
     private fun initializeHeartRateSensor() {
@@ -121,8 +124,8 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
                 val hr = event.values.last().toInt()
                 if (hr > 0) {
                     val speed = getFanSpeedForHeartRate(hr)
-                    setSpeed(speed)
-                    metric.postValue(hr)
+                    model.speedToDevice.postValue(speed)
+                    model.hr.postValue(hr)
                 }
             }
 
@@ -134,40 +137,13 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
         }
     }
 
-    /**
-     * Allows fan speed to be adjusted by swiping up or down on the screen.
-     */
-    private fun initializeSwipe() {
-        val gesture = GestureDetector(this,
-            object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDown(e: MotionEvent): Boolean {
-                    return true
-                }
-
-                override fun onFling(
-                    e1: MotionEvent, e2: MotionEvent, velocityX: Float,
-                    velocityY: Float
-                ): Boolean {
-                    when {
-                        velocityY < FAST_SWIPE_UP -> incrementSpeed(10)
-                        velocityY < SLOW_SWIPE_UP -> incrementSpeed(1)
-                        velocityY > FAST_SWIPE_DOWN -> decrementSpeed(1)
-                        velocityY > SLOW_SWIPE_DOWN -> decrementSpeed(10)
-                    }
-                    return true
-                }
-            })
-
-        binding.metric.setOnTouchListener { v, event -> gesture.onTouchEvent(event) }
-    }
-
     private fun getFanSpeedForHeartRate(heartRate: Int): Int {
         return when {
             heartRate < hrMin -> speedMin
             heartRate > hrMax -> speedMax
             else -> {
                 val hrPc =
-                    (heartRate - hrMin).toFloat() / (hrMax - hrMin)
+                        (heartRate - hrMin).toFloat() / (hrMax - hrMin)
                 val fanRange = speedMax - speedMin
                 (speedMin + hrPc * fanRange).toInt()
             }
@@ -182,44 +158,12 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
 
     private fun setSpeed(value: Int) {
         fanCharacteristic?.let { characteristic ->
-            metric.value = value
-            Log.i(TAG, "Speed: $metric")
-            ConnectionManager.writeCharacteristic(
-                device,
-                characteristic,
-                fanValue(value)
-            )
-        }
-    }
-
-    private fun incrementSpeed(delta: Int) {
-        fanCharacteristic?.let { characteristic ->
-            metric.value?.let {
-                if (it != -1 && it + delta <= 100) {
-                    metric.value = it + delta
-                    Log.i(TAG, "Speed: $metric")
-                    ConnectionManager.writeCharacteristic(
+            if (value != model.speedFromDevice.value) {
+                ConnectionManager.writeCharacteristic(
                         device,
                         characteristic,
-                        fanValue(it + delta)
-                    )
-                }
-            }
-        }
-    }
-
-    private fun decrementSpeed(delta: Int) {
-        fanCharacteristic?.let { characteristic ->
-            metric.value?.let {
-                if (it != -1 && it - delta >= 0) {
-                    metric.value = it - delta
-                    Log.i(TAG, "Speed: $metric")
-                    ConnectionManager.writeCharacteristic(
-                        device,
-                        characteristic,
-                        fanValue(it - delta)
-                    )
-                }
+                        fanValue(value)
+                )
             }
         }
     }
@@ -232,9 +176,8 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
 
             onCharacteristicChanged = { _, characteristic ->
                 if (characteristic.uuid == CHARACTERISTIC_UUID) {
-                    // Update the displayed fan speed, based up value from fan notifications.
-                    if (isFanSpeedResponse(characteristic.value) && !useHeartRate) {
-                        metric.postValue(characteristic.value[2].toInt())
+                    if (isFanSpeedResponse(characteristic.value)) {
+                        model.speedFromDevice.postValue(characteristic.value[2].toInt())
                     }
                 }
             }
@@ -248,7 +191,7 @@ class FanControlActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbac
     private fun isFanSpeedResponse(byteArray: ByteArray): Boolean {
         with(byteArray) {
             return size == 4 && get(0) == 0xFD.b
-                && get(1) == 0x01.b && get(3) == 0x04.b
+                    && get(1) == 0x01.b && get(3) == 0x04.b
         }
     }
 
