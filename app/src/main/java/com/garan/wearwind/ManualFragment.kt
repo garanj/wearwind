@@ -6,28 +6,21 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.Observer
 import com.garan.wearwind.databinding.FragmentManualBinding
 
 
-class ManualFragment : Fragment() {
+class ManualFragment : FanFragment() {
     private var _binding: FragmentManualBinding? = null
     private val binding get() = _binding!!
-    private val model by activityViewModels<FanControlViewModel>()
+    private lateinit var fanMetrics: FanMetrics
 
     override fun onCreateView(
             inflater: LayoutInflater,
             container: ViewGroup?,
             savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         _binding = FragmentManualBinding.inflate(inflater, container, false)
         val view = binding.root
-
-        model.speedFromDevice.observe(viewLifecycleOwner, Observer {
-            binding.speed.text = "$it"
-        })
 
         initializeSwipe()
         return view
@@ -52,7 +45,7 @@ class ManualFragment : Fragment() {
                             e1: MotionEvent, e2: MotionEvent, velocityX: Float,
                             velocityY: Float
                     ): Boolean {
-                        model.speedFromDevice.value?.let {
+                        fanMetrics.speedFromDevice.value?.let {
                             when {
                                 velocityY < FAST_SWIPE_UP -> incrementSpeed(10)
                                 velocityY < SLOW_SWIPE_UP -> incrementSpeed(1)
@@ -67,23 +60,30 @@ class ManualFragment : Fragment() {
         binding.speed.setOnTouchListener { v, event -> gesture.onTouchEvent(event) }
     }
 
-    private fun incrementSpeed(delta: Int) {
-        model.speedFromDevice.value?.let {
+    fun incrementSpeed(delta: Int) {
+        fanMetrics.speedFromDevice.value?.let {
             if ((it != -1) &&
                     (it + delta <= 100) &&
-                    (model.speedToDevice.value != it + delta)) {
-                model.speedToDevice.value = it + delta
+                    (fanMetrics.speedToDevice.value != it + delta)) {
+                fanMetrics.speedToDevice.value = it + delta
             }
         }
     }
 
-    private fun decrementSpeed(delta: Int) {
-        model.speedFromDevice.value?.let {
+    fun decrementSpeed(delta: Int) {
+        fanMetrics.speedFromDevice.value?.let {
             if ((it != -1) &&
                     (it - delta >= 0) &&
-                    (model.speedToDevice.value != it - delta)) {
-                model.speedToDevice.value = it - delta
+                    (fanMetrics.speedToDevice.value != it - delta)) {
+                fanMetrics.speedToDevice.value = it - delta
             }
         }
+    }
+
+    override fun setModel(metrics: FanMetrics) {
+        fanMetrics = metrics
+        fanMetrics.speedFromDevice.observe(viewLifecycleOwner, {
+            binding.speed.text = "$it"
+        })
     }
 }

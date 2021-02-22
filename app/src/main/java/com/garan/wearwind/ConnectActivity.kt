@@ -18,13 +18,14 @@ import com.garan.wearwind.databinding.ActivityConnectBinding
 import com.punchthrough.ble.ConnectionEventListener
 import com.punchthrough.ble.ConnectionManager
 
-const val TAG = "WearWind"
+const val TAG = "Bardy"
 
 /**
  * Activity for controlling searching for the Headwind fan, and launching the fan control activity
  * on successfully locating and connecting to it.
  */
 class ConnectActivity : FragmentActivity() {
+    private var device: BluetoothDevice? = null
     private val requiredPermissions = arrayOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.BODY_SENSORS
@@ -43,10 +44,17 @@ class ConnectActivity : FragmentActivity() {
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-    private var isConnected = false
+    private var connectionStatus = ConnectionStatus.DISCONNECTED
         set(value) {
             field = value
-            runOnUiThread { binding.scanButton.text = if (value) "Disconnect" else "Connect" }
+            runOnUiThread {
+                binding.scanButton.text = when(value) {
+                    ConnectionStatus.CONNECTED -> "Disconnect"
+                    ConnectionStatus.SCANNING -> "Cancel scan"
+                    ConnectionStatus.CONNECTING -> "Cancel connect"
+                    ConnectionStatus.DISCONNECTED -> "Connect"
+                }
+            }
         }
 
     private val menuItemClickListener = MenuItem.OnMenuItemClickListener { item ->
@@ -69,7 +77,19 @@ class ConnectActivity : FragmentActivity() {
         setContentView(binding.root)
 
         binding.scanButton.setOnClickListener {
-            if (isConnected) stopBleScan() else startBleScan()
+            when (connectionStatus) {
+                ConnectionStatus.DISCONNECTED -> startBleScan()
+                ConnectionStatus.SCANNING -> {
+                    stopBleScan()
+                    connectionStatus = ConnectionStatus.DISCONNECTED
+                }
+                ConnectionStatus.CONNECTING, ConnectionStatus.CONNECTED -> {
+                    device?.let {
+                        ConnectionManager.teardownConnection(it)
+                    }
+                    connectionStatus = ConnectionStatus.DISCONNECTED
+                }
+            }
         }
 
         val launcher =
@@ -94,12 +114,11 @@ class ConnectActivity : FragmentActivity() {
 
     private fun startBleScan() {
         bleScanner.startScan(null, scanSettings, scanCallback)
-        isConnected = true
+        connectionStatus = ConnectionStatus.SCANNING
     }
 
     private fun stopBleScan() {
         bleScanner.stopScan(scanCallback)
-        isConnected = false
     }
 
     private val scanCallback = object : ScanCallback() {
@@ -107,28 +126,31 @@ class ConnectActivity : FragmentActivity() {
             with(result.device) {
                 if (name?.contains("HEADWIND", true) == true) {
                     stopBleScan()
+                    connectionStatus = ConnectionStatus.CONNECTING
                     ConnectionManager.connect(this, this@ConnectActivity)
                 }
             }
         }
 
         override fun onScanFailed(errorCode: Int) {
-            //
+            connectionStatus = ConnectionStatus.DISCONNECTED
         }
     }
 
     private val connectionEventListener by lazy {
         ConnectionEventListener().apply {
             onConnectionSetupComplete = { gatt ->
-                isConnected = true
-                Intent(this@ConnectActivity, FanControlActivity::class.java).also {
-                    it.putExtra(BluetoothDevice.EXTRA_DEVICE, gatt.device)
-                    it.putExtra(USE_HEART_RATE, binding.hrSwitch.isChecked)
-                    startActivity(it)
+                if (connectionStatus != ConnectionStatus.CONNECTED) {
+                    Intent(this@ConnectActivity, FanControlActivity::class.java).also {
+                        it.putExtra(BluetoothDevice.EXTRA_DEVICE, gatt.device)
+                        it.putExtra(USE_HEART_RATE, binding.hrSwitch.isChecked)
+                        startActivity(it)
+                    }
+                    connectionStatus = ConnectionStatus.CONNECTED
                 }
             }
             onDisconnect = {
-                isConnected = false
+                connectionStatus = ConnectionStatus.DISCONNECTED
             }
         }
     }
@@ -137,4 +159,11 @@ class ConnectActivity : FragmentActivity() {
         const val USE_HEART_RATE = "use_heart_rate"
         const val BOUNDARY = "boundary"
     }
+}
+
+enum class ConnectionStatus {
+    DISCONNECTED,
+    SCANNING,
+    CONNECTING,
+    CONNECTED
 }

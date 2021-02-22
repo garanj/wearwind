@@ -11,7 +11,6 @@
     <string name="speed">Speed</string>
     <string name="max">Max</string>
     <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="about_text">Wearwind makes use of Bluetooth code from Punchthrough, released under the Apache 2.0 license. Click here to launch full details.</string>
     <string name="license">License</string>
 </resources>
