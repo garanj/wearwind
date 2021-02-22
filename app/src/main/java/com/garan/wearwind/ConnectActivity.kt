@@ -18,7 +18,7 @@ import com.garan.wearwind.databinding.ActivityConnectBinding
 import com.punchthrough.ble.ConnectionEventListener
 import com.punchthrough.ble.ConnectionManager
 
-const val TAG = "Bardy"
+const val TAG = "Wearwind"
 
 /**
  * Activity for controlling searching for the Headwind fan, and launching the fan control activity
@@ -126,6 +126,7 @@ class ConnectActivity : FragmentActivity() {
             with(result.device) {
                 if (name?.contains("HEADWIND", true) == true) {
                     stopBleScan()
+                    this@ConnectActivity.device = this
                     connectionStatus = ConnectionStatus.CONNECTING
                     ConnectionManager.connect(this, this@ConnectActivity)
                 }
