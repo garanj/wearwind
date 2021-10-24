@@ -1,10 +1,12 @@
 # Wearwind
 
-_Control your [Wahoo Headwind fan][headwind] from a [Wear OS][wearos] watch._
+_Control your [Wahoo Headwind fan][headwind] from a [Wear OS 3][wearos] watch._
 
 <img src="images/connect.png" alt="Connect to Headwind" width="250" height="250"/>
 <img src="images/manual.png" alt="Manual control" width="250" height="250"/>
 <img src="images/hr.png" alt="HR control" width="250" height="250"/>
+<img src="images/settings.png" alt="HR control" width="250" height="250"/>
+
 
 ## Background
 
@@ -30,8 +32,7 @@ wrist HR sensor can be used such that fan speed increases as HR does.
 
 ## Setting up HR zones
 
-The bottom drawer on opening app can be swiped up to reveal configuration
-options for the HR tracking behaviour. This allows you to configure two points:
+The settings menu allows you to configure two points:
 A HR/speed min and a HR/speed max.
 
 -  When your HR is at or below the min, the speed will be set to the min value.

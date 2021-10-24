@@ -26,7 +26,6 @@ import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -50,13 +49,6 @@ object ConnectionManager {
 
     fun servicesOnDevice(device: BluetoothDevice): List<BluetoothGattService>? =
         deviceGattMap[device]?.services
-
-    fun listenToBondStateChanges(context: Context) {
-        context.applicationContext.registerReceiver(
-            broadcastReceiver,
-            IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
-        )
-    }
 
     fun registerListener(listener: ConnectionEventListener) {
         if (listeners.map { it.get() }.contains(listener)) { return }
@@ -95,16 +87,6 @@ object ConnectionManager {
         }
     }
 
-    fun readCharacteristic(device: BluetoothDevice, characteristic: BluetoothGattCharacteristic) {
-        if (device.isConnected() && characteristic.isReadable()) {
-            enqueueOperation(CharacteristicRead(device, characteristic.uuid))
-        } else if (!characteristic.isReadable()) {
-            Log.e(TAG, "Attempting to read ${characteristic.uuid} that isn't readable!")
-        } else if (!device.isConnected()) {
-            Log.e(TAG, "Not connected to ${device.address}, cannot perform characteristic read")
-        }
-    }
-
     fun writeCharacteristic(
         device: BluetoothDevice,
         characteristic: BluetoothGattCharacteristic,
@@ -127,30 +109,6 @@ object ConnectionManager {
         }
     }
 
-    fun readDescriptor(device: BluetoothDevice, descriptor: BluetoothGattDescriptor) {
-        if (device.isConnected() && descriptor.isReadable()) {
-            enqueueOperation(DescriptorRead(device, descriptor.uuid))
-        } else if (!descriptor.isReadable()) {
-            Log.e(TAG, "Attempting to read ${descriptor.uuid} that isn't readable!")
-        } else if (!device.isConnected()) {
-            Log.e(TAG, "Not connected to ${device.address}, cannot perform descriptor read")
-        }
-    }
-
-    fun writeDescriptor(
-        device: BluetoothDevice,
-        descriptor: BluetoothGattDescriptor,
-        payload: ByteArray
-    ) {
-        if (device.isConnected() && (descriptor.isWritable() || descriptor.isCccd())) {
-            enqueueOperation(DescriptorWrite(device, descriptor.uuid, payload))
-        } else if (!device.isConnected()) {
-            Log.e(TAG, "Not connected to ${device.address}, cannot perform descriptor write")
-        } else if (!descriptor.isWritable() && !descriptor.isCccd()) {
-            Log.e(TAG, "Descriptor ${descriptor.uuid} cannot be written to")
-        }
-    }
-
     fun enableNotifications(device: BluetoothDevice, characteristic: BluetoothGattCharacteristic) {
         if (device.isConnected() &&
             (characteristic.isIndicatable() || characteristic.isNotifiable())
@@ -158,18 +116,6 @@ object ConnectionManager {
             enqueueOperation(EnableNotifications(device, characteristic.uuid))
         } else if (!device.isConnected()) {
             Log.e(TAG, "Not connected to ${device.address}, cannot enable notifications")
-        } else if (!characteristic.isIndicatable() && !characteristic.isNotifiable()) {
-            Log.e(TAG, "Characteristic ${characteristic.uuid} doesn't support notifications/indications")
-        }
-    }
-
-    fun disableNotifications(device: BluetoothDevice, characteristic: BluetoothGattCharacteristic) {
-        if (device.isConnected() &&
-            (characteristic.isIndicatable() || characteristic.isNotifiable())
-        ) {
-            enqueueOperation(DisableNotifications(device, characteristic.uuid))
-        } else if (!device.isConnected()) {
-            Log.e(TAG, "Not connected to ${device.address}, cannot disable notifications")
         } else if (!characteristic.isIndicatable() && !characteristic.isNotifiable()) {
             Log.e(TAG, "Characteristic ${characteristic.uuid} doesn't support notifications/indications")
         }

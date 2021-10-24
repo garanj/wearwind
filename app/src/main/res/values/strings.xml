@@ -1,16 +1,28 @@
 <resources>
     <string name="app_name">Wearwind</string>
-    <string name="use_hr">Use HR</string>
-    <string name="connect">Connect</string>
-    <string name="initial_metric_values">0</string>
-    <string name="menu_title">Set max/min</string>
 
-    <string name="fan_hr_min">Fan/HR min</string>
-    <string name="fan_hr_max">Fan/HR max</string>
-    <string name="hr_threshold">HR</string>
+    <!-- Connect button labels -->
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Settings headings -->
+    <string name="settings">Settings</string>
+    <string name="hr">HR</string>
     <string name="speed">Speed</string>
-    <string name="max">Max</string>
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="about_text">Wearwind makes use of Bluetooth code from Punchthrough, released under the Apache 2.0 license. Click here to launch full details.</string>
-    <string name="license">License</string>
+    <string name="about">About</string>
+
+    <!-- Settings labels -->
+    <string name="plus">+</string>
+    <string name="minus">-</string>
+
+    <string name="min_small">min</string>
+    <string name="max_small">max</string>
+
+    <!-- Connected screen -->
+    <string name="waiting_for_hr">"Waiting for HR…"</string>
+
+    <!-- About screen -->
+    <string name="about_toast_msg">Opening on phone…</string>
+    <string name="about_url">https://github.com/garanj/wearwind#license</string>
 </resources>

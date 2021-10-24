@@ -1,15 +1,20 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
+apply plugin: 'dagger.hilt.android.plugin'
+apply plugin: 'kotlin-kapt'
 
 android {
-    compileSdkVersion 29
-    buildToolsVersion "29.0.3"
+    compileSdkVersion 31
+    buildToolsVersion "30.0.3"
     defaultConfig {
         applicationId "com.garan.wearwind"
-        minSdkVersion 26
-        targetSdkVersion 29
-        versionCode 6
-        versionName "1.5"
+        minSdkVersion 30
+        targetSdkVersion 30
+        versionCode 7
+        versionName "2.0"
+        vectorDrawables {
+            useSupportLibrary true
+        }
     }
     buildTypes {
         release {
@@ -17,29 +22,67 @@ android {
         }
     }
     buildFeatures {
-        viewBinding true
+        compose = true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.1.0-alpha04"
+    }
+    kotlinOptions {
+        jvmTarget = "1.8"
+        useIR = true
+        freeCompilerArgs += "-Xopt-in=kotlin.RequiresOptIn"
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8.toString()
+    packagingOptions {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
     }
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    implementation 'androidx.core:core-ktx:1.3.2'
-    implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
-    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.3.0"
-    implementation 'androidx.wear:wear:1.1.0'
-    implementation "androidx.fragment:fragment-ktx:1.3.0"
-    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
-    compileOnly 'com.google.android.support:wearable:2.8.1'
 
-    implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.3.0"
-    implementation "androidx.lifecycle:lifecycle-service:2.3.0"
+    // Required for activity
+    implementation "androidx.core:core-ktx:1.6.0"
+    implementation "androidx.activity:activity-compose:1.3.1"
+
+    // Required for Wear Compose
+    implementation "androidx.wear.compose:compose-foundation:$wear_compose_version"
+    implementation "androidx.wear.compose:compose-material:$wear_compose_version"
+    implementation "androidx.wear.compose:compose-navigation:$wear_compose_version"
+
+    implementation "androidx.compose.foundation:foundation:$compose_version"
+    // Only required for circular progress indicator
+    implementation "androidx.compose.material:material:$compose_version"
+    implementation "androidx.compose.material:material-icons-extended:$compose_version"
+
+    implementation "androidx.constraintlayout:constraintlayout-compose:1.0.0-rc01"
+
+    // Required for observeAsState
+    implementation "androidx.compose.runtime:runtime-livedata:$compose_version"
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    implementation "androidx.wear:wear:1.2.0"
+    implementation "androidx.fragment:fragment-ktx:1.3.6"
+
+    // Required for serialization in preferences
+    implementation "com.google.code.gson:gson:2.8.6"
+
+    // Ongoing activity
+    implementation "androidx.wear:wear-ongoing:1.0.0"
+
+    // Required for the service
+    implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.3.1"
+    implementation "androidx.lifecycle:lifecycle-service:2.3.1"
+
+    // Hilt
+    implementation "com.google.dagger:hilt-android:2.38.1"
+    kapt "com.google.dagger:hilt-android-compiler:2.38.1"
+
+    // For launching "About" via remote intent
+    implementation "androidx.wear:wear-remote-interactions:1.0.0"
 }

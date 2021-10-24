@@ -1,10 +1,16 @@
 package com.garan.wearwind
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.Intent
 import android.hardware.Sensor
@@ -12,136 +18,306 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Binder
-import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.lifecycleScope
+import androidx.wear.ongoing.OngoingActivity
+import androidx.wear.ongoing.Status
+import com.garan.wearwind.FanControlService.Companion.INITIAL_SPEED
 import com.punchthrough.ble.ConnectionEventListener
 import com.punchthrough.ble.ConnectionManager
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
+import javax.inject.Inject
 
 
+@AndroidEntryPoint
 class FanControlService : LifecycleService() {
-    private val binder = LocalBinder()
-    private lateinit var device: BluetoothDevice
-    private var useHeartRate = false
-    private var fanCharacteristic: BluetoothGattCharacteristic? = null
-    private var poweredOn = false
+    enum class FanConnectionStatus {
+        DISCONNECTED,
+        SCANNING,
+        CONNECTING,
+        CONNECTED
+    }
 
-    private var hrMax: Int = 0
-    private var hrMin: Int = 0
-    private var speedMax: Int = 0
-    private var speedMin: Int = 0
+    @Inject
+    lateinit var preferences: Preferences
+
+    private val binder = LocalBinder()
+    private var device: BluetoothDevice? = null
+    private var fanCharacteristic: BluetoothGattCharacteristic? = null
 
     private val characteristics by lazy {
-        ConnectionManager.servicesOnDevice(device)?.flatMap { service ->
-            service.characteristics ?: listOf()
+        device?.let {
+            ConnectionManager.servicesOnDevice(it)?.flatMap { service ->
+                service.characteristics ?: listOf()
+            }
         } ?: listOf()
     }
+
+    private var started = false
 
     private val sensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
     private val sensor by lazy { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) }
     private var listener: SensorEventListener? = null
 
-    val metrics = FanMetrics()
+    private val bluetoothAdapter: BluetoothAdapter by lazy {
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothManager.adapter
+    }
+
+    private val bleScanner by lazy {
+        bluetoothAdapter.bluetoothLeScanner
+    }
+
+    private val scanSettings = ScanSettings.Builder()
+        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+        .build()
+
+    private val scanCallback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult) {
+            with(result.device) {
+                if (name?.contains(BLE_DEVICE_NAME, true) == true) {
+                    stopBleScan()
+                    //TODO pause 500 ms?
+                    this@FanControlService.device = this
+                    _fanConnectionStatus.value = FanConnectionStatus.CONNECTING
+                    ConnectionManager.connect(this, this@FanControlService)
+                }
+            }
+        }
+
+        override fun onScanFailed(errorCode: Int) {
+            _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
+        }
+    }
+
+    private val connectionEventListener by lazy {
+        ConnectionEventListener().apply {
+            onConnectionSetupComplete = { gatt ->
+                if (_fanConnectionStatus.value != FanConnectionStatus.CONNECTED) {
+                    _fanConnectionStatus.postValue(FanConnectionStatus.CONNECTED)
+
+                    device = gatt.device
+                    fanCharacteristic = characteristics.find { it.uuid == CHARACTERISTIC_UUID }
+
+                    fanCharacteristic?.let {
+                        ConnectionManager.enableNotifications(gatt.device, it)
+                        ConnectionManager.writeCharacteristic(gatt.device, it, POWER_ON)
+
+                        setSpeed(INITIAL_SPEED)
+
+                    }
+
+                    initializeHeartRateSensor()
+                }
+            }
+            onDisconnect = {
+                teardownHeartRateSensor()
+                _fanConnectionStatus.postValue(FanConnectionStatus.DISCONNECTED)
+            }
+            onCharacteristicChanged = { _, characteristic ->
+                if (characteristic.uuid == CHARACTERISTIC_UUID) {
+                    if (isFanSpeedResponse(characteristic.value)) {
+                        metrics.speedFromDevice.postValue(characteristic.value[2].toInt())
+                    }
+                }
+            }
+        }
+    }
+
+    private val _fanConnectionStatus =
+        MutableLiveData(FanConnectionStatus.DISCONNECTED)
+    val fanConnectionStatus: LiveData<FanConnectionStatus> = _fanConnectionStatus
+
+    private val _hrEnabled = MutableLiveData(false)
+    val hrEnabled: LiveData<Boolean> = _hrEnabled
+
+    private val _speedSettings = MutableLiveData<MinMaxHolder>()
+    val speedSettings: LiveData<MinMaxHolder> = _speedSettings
+
+    private val _hrSettings = MutableLiveData<MinMaxHolder>()
+    val hrSettings: LiveData<MinMaxHolder> = _hrSettings
+
+    var metrics = FanMetrics()
 
     override fun onCreate() {
         super.onCreate()
         ConnectionManager.registerListener(connectionEventListener)
-        loadHrPrefs()
+        loadPreferences()
+
+        Log.i(TAG, "Service onCreate")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
 
-        if (!poweredOn) {
-            device = intent?.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                    ?: error("Missing BluetoothDevice from ConnectActivity!")
-            useHeartRate = intent.getBooleanExtra(ConnectActivity.USE_HEART_RATE, false)
+        if (!started) {
+            enableForegroundService()
 
-            fanCharacteristic = characteristics.find { it.uuid == CHARACTERISTIC_UUID }
-
-            fanCharacteristic?.let {
-                ConnectionManager.enableNotifications(device, it)
-                ConnectionManager.writeCharacteristic(device, it, POWER_ON)
+            lifecycleScope.launch {
+                withContext(Dispatchers.Main) {
+                    metrics.speedToDevice.observe(this@FanControlService, {
+                        setSpeed(it)
+                    })
+                }
             }
-
-            if (useHeartRate) {
-                initializeHeartRateSensor()
-            }
-
-            metrics.speedToDevice.observe(this, {
-                setSpeed(it)
-            })
-
-            poweredOn = true
+            started = true
         }
+        Log.i(TAG, "service onStartCommand")
         return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent): IBinder {
         super.onBind(intent)
-        stopForeground(true)
+        Log.i(TAG, "service onBind")
         return binder
     }
 
     override fun onRebind(intent: Intent?) {
-        stopForeground(true)
+        Log.i(TAG, "service onRebind")
         super.onRebind(intent)
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
-        enableForegroundService()
+        Log.i(TAG, "service onUnbind")
+        maybeStopService()
         return true
+    }
+
+    private fun maybeStopService() {
+        if (fanConnectionStatus.value == FanConnectionStatus.DISCONNECTED) {
+            Log.i(TAG, "Stopping service")
+            ConnectionManager.unregisterListener(connectionEventListener)
+            stopSelf()
+        }
     }
 
     private fun enableForegroundService() {
         createNotificationChannel()
-        val notificationIntent = Intent(this, FanControlActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-                this,
-                0, notificationIntent, 0
-        )
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(TITLE)
-                .setContentText(TEXT)
-                .setSmallIcon(R.drawable.fan_white_24)
-                .setContentIntent(pendingIntent)
-                .build()
-        startForeground(1, notification)
-    }
-
-    fun stopService() {
-        if (useHeartRate) {
-            listener?.let {
-                sensorManager.unregisterListener(it)
-            }
-        }
-        fanCharacteristic?.let {
-            ConnectionManager.writeCharacteristic(device, it, POWER_OFF)
-        }
-        ConnectionManager.unregisterListener(connectionEventListener)
-        ConnectionManager.teardownConnection(device)
-
-        stopSelf()
+        startForeground(1, buildNotification())
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val serviceChannel = NotificationChannel(CHANNEL_ID, "Foreground Service Channel",
-                    NotificationManager.IMPORTANCE_DEFAULT)
-            val manager = getSystemService(NotificationManager::class.java)
-            manager!!.createNotificationChannel(serviceChannel)
+        val serviceChannel = NotificationChannel(
+            NOTIFICATION_CHANNEL, "com.garan.wearwind.ONGOING",
+            NotificationManager.IMPORTANCE_DEFAULT
+        )
+        val manager = getSystemService(NotificationManager::class.java)
+        manager!!.createNotificationChannel(serviceChannel)
+    }
+
+    private fun buildNotification(): Notification {
+        val notificationIntent = Intent(this, FanActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0, notificationIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        // Build the notification.
+        val notificationBuilder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
+            .setContentTitle(NOTIFICATION_TITLE)
+            .setContentText(NOTIFICATION_TEXT)
+            .setSmallIcon(R.drawable.ic_logo)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_WORKOUT)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+        val ongoingActivityStatus = Status.Builder()
+            .addTemplate(STATUS_TEMPLATE)
+            .addPart("speed", Status.TextPart("${metrics.speedToDevice.value}"))
+            .build()
+        val ongoingActivity =
+            OngoingActivity.Builder(applicationContext, NOTIFICATION_ID, notificationBuilder)
+                .setAnimatedIcon(R.drawable.ic_logo)
+                .setStaticIcon(R.drawable.ic_logo)
+                .setTouchIntent(pendingIntent)
+                .setStatus(ongoingActivityStatus)
+                .build()
+        ongoingActivity.apply(applicationContext)
+
+        return notificationBuilder.build()
+    }
+
+    fun connectOrDisconnect() {
+        when (_fanConnectionStatus.value) {
+            FanConnectionStatus.DISCONNECTED -> {
+                metrics = FanMetrics()
+                bleScanner.startScan(null, scanSettings, scanCallback)
+                _fanConnectionStatus.value = FanConnectionStatus.SCANNING
+            }
+            FanConnectionStatus.CONNECTED -> {
+                device?.let {
+                    fanCharacteristic?.let { characteristic ->
+                        ConnectionManager.writeCharacteristic(it, characteristic, POWER_OFF)
+                    }
+                    ConnectionManager.teardownConnection(device = it)
+                }
+            }
+            FanConnectionStatus.CONNECTING -> {
+                _fanConnectionStatus.postValue(FanConnectionStatus.DISCONNECTED)
+            }
+            FanConnectionStatus.SCANNING -> {
+                stopBleScan()
+                _fanConnectionStatus.postValue(FanConnectionStatus.DISCONNECTED)
+            }
         }
     }
 
-    private fun loadHrPrefs() {
-        val sharedPref = getSharedPreferences(MinMaxActivity.HR_PREFERENCES_KEY, Context.MODE_PRIVATE)
-        hrMax = sharedPref.getInt(MinMaxActivity.HR_MAX_KEY, MinMaxActivity.HR_MAX_DEFAULT)
-        hrMin = sharedPref.getInt(MinMaxActivity.HR_MIN_KEY, MinMaxActivity.HR_MIN_DEFAULT)
-        speedMax = sharedPref.getInt(MinMaxActivity.SPEED_MAX_KEY, MinMaxActivity.SPEED_MAX_DEFAULT)
-        speedMin = sharedPref.getInt(MinMaxActivity.SPEED_MIN_KEY, MinMaxActivity.SPEED_MIN_DEFAULT)
+    fun testConnectOrDisconnect() {
+        if (_fanConnectionStatus.value == FanConnectionStatus.DISCONNECTED) {
+            lifecycleScope.launch {
+                _fanConnectionStatus.postValue(FanConnectionStatus.CONNECTING)
+                delay(5000)
+                _fanConnectionStatus.postValue(FanConnectionStatus.CONNECTED)
+            }
+        } else if (_fanConnectionStatus.value == FanConnectionStatus.CONNECTED) {
+            _fanConnectionStatus.postValue(FanConnectionStatus.DISCONNECTED)
+        }
+    }
+
+    fun toggleHrState() {
+        _hrEnabled.value = !(_hrEnabled.value ?: false)
+        _hrEnabled.value?.let {
+            preferences.setHrEnabled(it)
+        }
+    }
+
+    private fun loadPreferences() {
+        _hrEnabled.value = preferences.getHrEnabled()
+        _speedSettings.value = preferences.getSpeedMinMax()
+        _hrSettings.value = preferences.getHrMinMax()
+    }
+
+    fun incrementSetting(type: SettingType, level: SettingLevel) {
+        preferences.incrementSetting(type, level)
+        if (type == SettingType.HR) {
+            _hrSettings.value = preferences.getHrMinMax()
+        } else {
+            _speedSettings.value = preferences.getSpeedMinMax()
+        }
+    }
+
+    fun decrementSetting(type: SettingType, level: SettingLevel) {
+        preferences.decrementSetting(type, level)
+        if (type == SettingType.HR) {
+            _hrSettings.value = preferences.getHrMinMax()
+        } else {
+            _speedSettings.value = preferences.getSpeedMinMax()
+        }
+    }
+
+    private fun stopBleScan() {
+        bleScanner.stopScan(scanCallback)
     }
 
     private fun initializeHeartRateSensor() {
@@ -163,6 +339,13 @@ class FanControlService : LifecycleService() {
         }
     }
 
+    private fun teardownHeartRateSensor() {
+        listener?.let {
+            sensorManager.unregisterListener(listener)
+        }
+        listener = null
+    }
+
     /**
      * Packages up the desired fan speed (0-100) in a byte array formatted as required for setting
      * the GATT characteristic.
@@ -170,42 +353,16 @@ class FanControlService : LifecycleService() {
     private fun fanValue(value: Int) = byteArrayOf(2, value.toByte())
 
     private fun getFanSpeedForHeartRate(heartRate: Int): Int {
+        val hr = _hrSettings.value!!
+        val speed = _speedSettings.value!!
         return when {
-            heartRate < hrMin -> speedMin
-            heartRate > hrMax -> speedMax
+            heartRate < hr.currentMin -> speed.currentMin
+            heartRate > hr.currentMax -> speed.currentMax
             else -> {
                 val hrPc =
-                        (heartRate - hrMin).toFloat() / (hrMax - hrMin)
-                val fanRange = speedMax - speedMin
-                (speedMin + hrPc * fanRange).toInt()
-            }
-        }
-    }
-
-    private fun setSpeed(value: Int) {
-        fanCharacteristic?.let { characteristic ->
-            if (value != metrics.speedFromDevice.value) {
-                ConnectionManager.writeCharacteristic(
-                        device,
-                        characteristic,
-                        fanValue(value)
-                )
-            }
-        }
-    }
-
-    private val connectionEventListener by lazy {
-        ConnectionEventListener().apply {
-            onDisconnect = {
-                // TODO: Something if disconnect
-            }
-
-            onCharacteristicChanged = { _, characteristic ->
-                if (characteristic.uuid == CHARACTERISTIC_UUID) {
-                    if (isFanSpeedResponse(characteristic.value)) {
-                        metrics.speedFromDevice.postValue(characteristic.value[2].toInt())
-                    }
-                }
+                    (heartRate - hr.currentMin).toFloat() / (hr.currentMax - hr.currentMin)
+                val fanRange = speed.currentMax - speed.currentMin
+                (speed.currentMin + hrPc * fanRange).toInt()
             }
         }
     }
@@ -216,29 +373,51 @@ class FanControlService : LifecycleService() {
      */
     private fun isFanSpeedResponse(byteArray: ByteArray): Boolean {
         with(byteArray) {
-            return size == 4 && get(0) == 0xFD.b
-                    && get(1) == 0x01.b && get(3) == 0x04.b
+            return size == 4 && get(0) == 0xFD.toByte()
+                && get(1) == 0x01.toByte() && get(3) == 0x04.toByte()
         }
     }
 
-    private val Int.b
-        get() =
-            this.toByte()
+    private fun setSpeed(value: Int) {
+        fanCharacteristic?.let { char ->
+            if (value != metrics.speedFromDevice.value) {
+                device?.let { dev ->
+                    ConnectionManager.writeCharacteristic(dev, char, fanValue(value))
+                }
+            }
+        }
+    }
 
     inner class LocalBinder : Binder() {
         fun getService(): FanControlService = this@FanControlService
     }
 
     companion object {
-        const val CHANNEL_ID = "com.garan.wearwind.FanControlService"
-        const val TITLE = "Wearwind"
-        const val TEXT = "Fan service running"
+        const val BLE_DEVICE_NAME = "HEADWIND"
+        const val NOTIFICATION_ID = 1
+        const val NOTIFICATION_CHANNEL = "com.garan.wearwind.FanControlService"
+        const val NOTIFICATION_TITLE = "Wearwind"
+        const val NOTIFICATION_TEXT = "Fan service running"
+        const val STATUS_TEMPLATE = "Speed #speed#"
+        const val INITIAL_SPEED = 10
         private val CHARACTERISTIC_UUID = UUID.fromString("a026e038-0a7d-4ab3-97fa-f1500f9feb8b")
         private val POWER_ON = byteArrayOf(4, 4, 1)
         private val POWER_OFF = byteArrayOf(2, 0)
     }
 }
 
-data class FanMetrics(val speedToDevice: MutableLiveData<Int> = MutableLiveData(0),
-                      val speedFromDevice: MutableLiveData<Int> = MutableLiveData(0),
-                      val hr: MutableLiveData<Int> = MutableLiveData(0))
+data class FanMetrics(
+    val speedToDevice: MutableLiveData<Int> = MutableLiveData(0),
+    val speedFromDevice: MutableLiveData<Int> = MutableLiveData(0),
+    val hr: MutableLiveData<Int> = MutableLiveData(0)
+)
+
+enum class SettingType {
+    HR,
+    SPEED
+}
+
+enum class SettingLevel {
+    MIN,
+    MAX
+}
