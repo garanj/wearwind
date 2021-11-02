@@ -27,14 +27,11 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
 import androidx.wear.ongoing.OngoingActivity
 import androidx.wear.ongoing.Status
-import com.garan.wearwind.FanControlService.Companion.INITIAL_SPEED
 import com.punchthrough.ble.ConnectionEventListener
 import com.punchthrough.ble.ConnectionManager
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
 
@@ -114,10 +111,11 @@ class FanControlService : LifecycleService() {
                         ConnectionManager.writeCharacteristic(gatt.device, it, POWER_ON)
 
                         setSpeed(INITIAL_SPEED)
-
                     }
 
-                    initializeHeartRateSensor()
+                    if (preferences.getHrEnabled()) {
+                        initializeHeartRateSensor()
+                    }
                 }
             }
             onDisconnect = {
@@ -154,6 +152,10 @@ class FanControlService : LifecycleService() {
         ConnectionManager.registerListener(connectionEventListener)
         loadPreferences()
 
+        metrics.speedToDevice.observe(this@FanControlService) {
+            setSpeed(it)
+        }
+
         Log.i(TAG, "Service onCreate")
     }
 
@@ -163,13 +165,6 @@ class FanControlService : LifecycleService() {
         if (!started) {
             enableForegroundService()
 
-            lifecycleScope.launch {
-                withContext(Dispatchers.Main) {
-                    metrics.speedToDevice.observe(this@FanControlService, {
-                        setSpeed(it)
-                    })
-                }
-            }
             started = true
         }
         Log.i(TAG, "service onStartCommand")
@@ -251,7 +246,7 @@ class FanControlService : LifecycleService() {
     fun connectOrDisconnect() {
         when (_fanConnectionStatus.value) {
             FanConnectionStatus.DISCONNECTED -> {
-                metrics = FanMetrics()
+                resetMetrics()
                 bleScanner.startScan(null, scanSettings, scanCallback)
                 _fanConnectionStatus.value = FanConnectionStatus.SCANNING
             }
@@ -386,6 +381,12 @@ class FanControlService : LifecycleService() {
                 }
             }
         }
+    }
+
+    private fun resetMetrics() = metrics.apply {
+        speedToDevice.postValue(0)
+        speedFromDevice.postValue(0)
+        hr.postValue(0)
     }
 
     inner class LocalBinder : Binder() {
