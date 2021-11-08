@@ -90,10 +90,10 @@ class Preferences @Inject constructor(@ApplicationContext context: Context) {
 }
 
 class MinMaxHolder(
-    private val absMin: Int,
-    private val absMax: Int,
-    initialMin: Int,
-    initialMax: Int,
+    private val absMin: Int = 0,
+    private val absMax: Int = 100,
+    initialMin: Int = 0,
+    initialMax: Int = 100,
     private val minInterval: Int = 20
 ) {
     private var _currentMin = initialMin

@@ -3,7 +3,7 @@
 buildscript {
     ext {
         compose_version = '1.0.4'
-        wear_compose_version = '1.0.0-alpha08'
+        wear_compose_version = '1.0.0-alpha09'
         ext.kotlin_version = '1.5.30'
     }
     repositories {

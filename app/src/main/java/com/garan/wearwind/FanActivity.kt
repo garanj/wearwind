@@ -11,36 +11,70 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BrightnessLow
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.QuestionAnswer
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.Recomposer
-import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.navigation.NavHostController
 import androidx.wear.ambient.AmbientModeSupport
 import androidx.wear.compose.material.ExperimentalWearMaterialApi
+import androidx.wear.compose.material.Scaffold
+import androidx.wear.compose.material.TimeText
+import androidx.wear.compose.material.Vignette
+import androidx.wear.compose.material.VignettePosition
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
-import com.garan.wearwind.FanControlService.FanConnectionStatus.CONNECTED
-import com.garan.wearwind.FanControlService.FanConnectionStatus.DISCONNECTED
 import com.garan.wearwind.screens.ConnectScreen
 import com.garan.wearwind.screens.ConnectedScreen
 import com.garan.wearwind.screens.SettingsDetailScreen
 import com.garan.wearwind.screens.SettingsItem
 import com.garan.wearwind.screens.SettingsScreen
-import com.garan.wearwind.screens.SpeedAndHrBox
-import com.garan.wearwind.screens.SpeedLabel
 import com.garan.wearwind.ui.theme.WearwindTheme
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 const val TAG = "Wearwind"
+
+enum class Screen(val route: String) {
+    CONNECT("connect"),
+    CONNECTED("connected"),
+    SETTINGS("settings"),
+    SETTINGS_HR("settings_hr"),
+    SETTINGS_SPEED("settings_speed")
+}
+
+class UiState(
+    var isShowTime: MutableState<Boolean>,
+    var isShowVignette: MutableState<Boolean>,
+    val navHostController: NavHostController
+)
+
+@ExperimentalWearMaterialApi
+@Composable
+fun rememberUiState(
+    isShowTime: MutableState<Boolean> = mutableStateOf(true),
+    isShowVignette: MutableState<Boolean> = mutableStateOf(false),
+    navHostController: NavHostController = rememberSwipeDismissableNavController()
+) = remember(isShowTime, isShowVignette, navHostController) {
+    UiState(isShowTime, isShowVignette, navHostController)
+}
 
 /**
  * Activity for controlling searching for the Headwind fan, and launching the fan control activity
@@ -52,18 +86,9 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
         Manifest.permission.BODY_SENSORS
     )
 
-    private var fanService: FanControlService? = null
+    private var fanService: MutableStateFlow<FanControlService?> = MutableStateFlow(null)
     private var bound: Boolean = false
 
-    private enum class Screen(val route: String) {
-        CONNECT("connect"),
-        CONNECTED("connected"),
-        SETTINGS("settings"),
-        SETTINGS_HR("settings_hr"),
-        SETTINGS_SPEED("settings_speed")
-    }
-
-    // TODO try removing all
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
@@ -80,12 +105,8 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             // We've bound to LocalService, cast the IBinder and get LocalService instance
             val binder = service as FanControlService.LocalBinder
-            binder.getService().let { fanControlService ->
-                setContent {
-                    WearwindTheme {
-                        WearwindNavigation(fanControlService = fanControlService)
-                    }
-                }
+            binder.getService().let {
+                fanService.value = it
             }
             Log.i(TAG, "onServiceConnected")
             bound = true
@@ -93,7 +114,7 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
 
         override fun onServiceDisconnected(arg0: ComponentName) {
             bound = false
-            fanService = null
+            fanService.value = null
             Log.i(TAG, "onServiceDisconnected")
         }
     }
@@ -106,93 +127,140 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
     }
 
     @OptIn(ExperimentalWearMaterialApi::class)
-    @Composable
-    fun WearwindNavigation(fanControlService: FanControlService) {
-        val navController = rememberSwipeDismissableNavController()
-        val connectionStatus = fanControlService.fanConnectionStatus.observeAsState()
-        val hrEnabled = fanControlService.hrEnabled.observeAsState()
+    @Composable()
+    fun WearwindScreen() {
+        val service by fanService.collectAsState()
+        val appState = rememberUiState()
 
-        LaunchedEffect(connectionStatus.value) {
-            if (connectionStatus.value == CONNECTED && navController.currentDestination?.route != Screen.CONNECTED.route) {
-                navController.navigate(Screen.CONNECTED.route)
-            } else if (connectionStatus.value == DISCONNECTED && navController.currentDestination?.route == Screen.CONNECTED.route) {
-                navController.popBackStack()
+        WearwindTheme {
+            Scaffold(
+                modifier = Modifier
+                    .fillMaxSize(),
+                timeText = { if (appState.isShowTime.value) TimeText() },
+                vignette = {
+                    if (appState.isShowVignette.value) Vignette(vignettePosition = VignettePosition.TopAndBottom)
+                }
+            ) {
+                if (service == null) {
+                    WearwindLoadingMessage()
+                } else {
+                    WearwindNavigation(appState, service!!)
+                }
             }
         }
+    }
+
+    @OptIn(ExperimentalWearMaterialApi::class)
+    @Composable
+    fun WearwindLoadingMessage() {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(
+                    id = R.drawable.ic_logo
+                ),
+                contentDescription = getString(R.string.loading_message)
+            )
+        }
+    }
+
+    @OptIn(ExperimentalWearMaterialApi::class)
+    @Composable
+    fun WearwindNavigation(uiState: UiState, service: FanControlService) {
+        val connectionStatus by service.fanConnectionStatus.collectAsState()
+        val hrEnabled by service.hrEnabled.collectAsState()
+
         SwipeDismissableNavHost(
-            navController = navController,
+            navController = uiState.navHostController,
             startDestination = Screen.CONNECT.route
         ) {
             composable(Screen.CONNECT.route) {
                 ConnectScreen(
-                    connectionStatus = connectionStatus.value!!,
-                    hrEnabled = hrEnabled.value!!,
+                    connectionStatus = connectionStatus,
+                    hrEnabled = hrEnabled,
+                    uiState = uiState,
                     onConnectClick = {
-                        fanControlService.connectOrDisconnect()
+                        service.connectOrDisconnect()
                     },
                     onHrClick = {
-                        fanControlService.toggleHrState()
+                        service.toggleHrState()
                     },
                     onSettingsClick = {
-                        navController.navigate(Screen.SETTINGS.route)
+                        uiState.navHostController.navigate(Screen.SETTINGS.route)
                     }
                 )
             }
             composable(Screen.CONNECTED.route) {
                 ConnectedScreen(
-                    hrEnabled = hrEnabled.value!!,
-                    service = fanControlService,
+                    connectionStatus = connectionStatus,
+                    hrEnabled = hrEnabled,
+                    service = service,
+                    uiState = uiState,
                     onSwipeBack = {
-                        fanControlService.connectOrDisconnect()
+                        service.connectOrDisconnect()
                     })
             }
             composable(Screen.SETTINGS.route) {
                 val composableScope = rememberCoroutineScope()
                 val context = LocalContext.current
-                SettingsScreen(listOf(
-                    SettingsItem.SettingsHeading(R.string.settings),
-                    SettingsItem.SettingsButton(
-                        labelId = R.string.hr,
-                        imageVector = Icons.Rounded.FavoriteBorder,
-                        onClick = {
-                            navController.navigate(Screen.SETTINGS_HR.route)
-                        }
-                    ),
-                    SettingsItem.SettingsButton(
-                        labelId = R.string.speed,
-                        imageVector = Icons.Rounded.BrightnessLow,
-                        onClick = {
-                            navController.navigate(Screen.SETTINGS_SPEED.route)
-                        }
-                    ),
-                    SettingsItem.SettingsButton(
-                        labelId = R.string.about,
-                        imageVector = Icons.Rounded.QuestionAnswer,
-                        onClick = {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.about_toast_msg),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            composableScope.launch {
-                                launchAbout(this@FanActivity)
+
+                SettingsScreen(uiState = uiState,
+                    settingsItemList = listOf(
+                        SettingsItem.SettingsHeading(R.string.settings),
+                        SettingsItem.SettingsButton(
+                            labelId = R.string.hr,
+                            imageVector = Icons.Rounded.FavoriteBorder,
+                            onClick = {
+                                uiState.navHostController.navigate(Screen.SETTINGS_HR.route)
                             }
-                        }
-                    ),
-                ))
+                        ),
+                        SettingsItem.SettingsButton(
+                            labelId = R.string.speed,
+                            imageVector = Icons.Rounded.BrightnessLow,
+                            onClick = {
+                                uiState.navHostController.navigate(Screen.SETTINGS_SPEED.route)
+                            }
+                        ),
+                        SettingsItem.SettingsButton(
+                            labelId = R.string.about,
+                            imageVector = Icons.Rounded.QuestionAnswer,
+                            onClick = {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.about_toast_msg),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                composableScope.launch {
+                                    launchAbout(this@FanActivity)
+                                }
+                            }
+                        ),
+                    ))
             }
             composable(Screen.SETTINGS_HR.route) {
+                val hrSettings by service.hrSettings.collectAsState()
                 SettingsDetailScreen(
-                    fanControlService,
+                    fanControlService = service,
+                    uiState = uiState,
+                    screenStarted = uiState.navHostController
+                        .getBackStackEntry(Screen.SETTINGS_HR.route)
+                        .lifecycle.currentState == Lifecycle.State.STARTED,
                     SettingType.HR,
-                    fanControlService.hrSettings
+                    hrSettings
                 )
             }
             composable(Screen.SETTINGS_SPEED.route) {
+                val speedSettings by service.speedSettings.collectAsState()
                 SettingsDetailScreen(
-                    fanControlService,
+                    fanControlService = service,
+                    uiState = uiState,
+                    screenStarted = uiState.navHostController
+                        .getBackStackEntry(Screen.SETTINGS_SPEED.route)
+                        .lifecycle.currentState == Lifecycle.State.STARTED,
                     SettingType.SPEED,
-                    fanControlService.speedSettings
+                    speedSettings
                 )
             }
         }
@@ -206,12 +274,16 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
 //        }
 //    }
 
-    // TODO
+    @OptIn(ExperimentalWearMaterialApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AmbientModeSupport.attach(this)
 
         permissionLauncher.launch(requiredPermissions)
+
+        setContent {
+            WearwindScreen()
+        }
     }
 
     override fun onDestroy() {

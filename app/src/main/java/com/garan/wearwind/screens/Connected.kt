@@ -8,8 +8,10 @@ import androidx.compose.material.LocalTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
-import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layoutId
@@ -20,16 +22,16 @@ import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ChainStyle
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.ConstraintSet
+import androidx.lifecycle.Lifecycle
 import androidx.wear.compose.material.ExperimentalWearMaterialApi
-import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
-import androidx.wear.compose.material.Vignette
-import androidx.wear.compose.material.VignettePosition
 import com.garan.wearwind.FanControlService
 import com.garan.wearwind.R
+import com.garan.wearwind.Screen
+import com.garan.wearwind.UiState
 import com.garan.wearwind.ui.theme.Colors
 import kotlin.math.abs
+
 
 /**
  * Composable functions for use when connected to the fan, either when in HR-guided or non-HR mode.
@@ -37,26 +39,53 @@ import kotlin.math.abs
 
 @Composable
 fun ConnectedScreen(
+    connectionStatus: FanControlService.FanConnectionStatus,
     hrEnabled: Boolean,
     service: FanControlService,
+    uiState: UiState,
+    screenStarted: Boolean = uiState.navHostController
+        .getBackStackEntry(Screen.CONNECTED.route)
+        .lifecycle.currentState == Lifecycle.State.STARTED,
     onSwipeBack: () -> Unit
 ) {
-    val hr = service.metrics.hr.observeAsState()
-    val speed = service.metrics.speedToDevice.observeAsState()
+    // Hold state reflecting how this screen is being closed.
+    val closedBySwipe = remember { mutableStateOf(true) }
+
+    // Handle changes in connectionStatus from the Service. i.e. If the fan disconnects by itself
+    // ensure that the app automatically navigates back to the Connect screen.
+    LaunchedEffect(connectionStatus) {
+        if (screenStarted && connectionStatus == FanControlService.FanConnectionStatus.DISCONNECTED) {
+            closedBySwipe.value = false
+            uiState.navHostController.popBackStack(Screen.CONNECT.route, false)
+        }
+    }
+
+    val hr by service.metrics.hr.collectAsState()
+    val speed by service.metrics.speedToDevice.collectAsState()
     if (hrEnabled) {
-        SpeedAndHrBox(hr, speed)
+        SpeedAndHrBox(uiState, screenStarted, hr, speed)
     } else {
-        SpeedLabel(speed, service)
+        SpeedLabel(uiState, screenStarted, speed, service)
     }
     // Side effect used to disconnect from the fan when dismissing the connected screen.
     DisposableEffect(Unit) {
-        onDispose(onSwipeBack)
+        onDispose {
+            // Only call the action associated with swiping back (i.e. instructing Service to
+            // disconnect) if this clean up is happening from a swipe.
+            if (closedBySwipe.value) {
+                onSwipeBack.invoke()
+            }
+        }
     }
 }
 
 @Composable
-fun SpeedAndHrBox(hr: State<Int?>, speed: State<Int?>) {
-    if (hr.value == 0) {
+fun SpeedAndHrBox(uiState: UiState, screenStarted: Boolean, hr: Int, speed: Int) {
+    if (screenStarted) {
+        uiState.isShowTime.value = true
+        uiState.isShowVignette.value = false
+    }
+    if (hr == 0) {
         SpeedAndHrPlaceholder()
     } else {
         SpeedAndHrLabel(hr, speed)
@@ -65,106 +94,96 @@ fun SpeedAndHrBox(hr: State<Int?>, speed: State<Int?>) {
 
 @OptIn(ExperimentalWearMaterialApi::class)
 @Composable
-fun SpeedAndHrLabel(hr: State<Int?>, speed: State<Int?>) {
-    Scaffold(
-        modifier = Modifier
-            .fillMaxSize(),
-        timeText = { TimeText() },
-        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
-    ) {
-        val constraintSet = ConstraintSet {
-            val speedLabel = createRefFor("speedLabel")
-            val hrLabel = createRefFor("hrLabel")
+fun SpeedAndHrLabel(hr: Int, speed: Int) {
+    val constraintSet = ConstraintSet {
+        val speedLabel = createRefFor("speedLabel")
+        val hrLabel = createRefFor("hrLabel")
 
-            constrain(speedLabel) {
-                top.linkTo(parent.top)
-                bottom.linkTo(hrLabel.top)
-                start.linkTo(parent.start)
-                end.linkTo(parent.end)
-            }
-            constrain(hrLabel) {
-                top.linkTo(speedLabel.bottom)
-                bottom.linkTo(parent.bottom)
-                end.linkTo(speedLabel.end)
-            }
-            createVerticalChain(
-                speedLabel, hrLabel, chainStyle = ChainStyle.Packed
-            )
+        constrain(speedLabel) {
+            top.linkTo(parent.top)
+            bottom.linkTo(hrLabel.top)
+            start.linkTo(parent.start)
+            end.linkTo(parent.end)
         }
-        ConstraintLayout(constraintSet = constraintSet, modifier = Modifier.fillMaxSize()) {
-            Text(
-                modifier = Modifier.layoutId("speedLabel"),
-                text = "${speed.value}",
-                color = Colors.primary,
-                style = LocalTextStyle.current.copy(fontSize = 64.sp),
-                fontStyle = FontStyle.Italic,
-                fontWeight = FontWeight.ExtraBold
-            )
-            Text(
-                modifier = Modifier.layoutId("hrLabel"),
-                text = "${hr.value}",
-                color = Colors.secondary,
-                style = LocalTextStyle.current.copy(fontSize = 48.sp),
-                fontStyle = FontStyle.Italic,
-                fontWeight = FontWeight.ExtraBold
-            )
+        constrain(hrLabel) {
+            top.linkTo(speedLabel.bottom)
+            bottom.linkTo(parent.bottom)
+            end.linkTo(speedLabel.end)
         }
+        createVerticalChain(
+            speedLabel, hrLabel, chainStyle = ChainStyle.Packed
+        )
+    }
+    ConstraintLayout(constraintSet = constraintSet, modifier = Modifier.fillMaxSize()) {
+        Text(
+            modifier = Modifier.layoutId("speedLabel"),
+            text = "$speed",
+            color = Colors.primary,
+            style = LocalTextStyle.current.copy(fontSize = 64.sp),
+            fontStyle = FontStyle.Italic,
+            fontWeight = FontWeight.ExtraBold
+        )
+        Text(
+            modifier = Modifier.layoutId("hrLabel"),
+            text = "$hr",
+            color = Colors.secondary,
+            style = LocalTextStyle.current.copy(fontSize = 48.sp),
+            fontStyle = FontStyle.Italic,
+            fontWeight = FontWeight.ExtraBold
+        )
     }
 }
 
 @OptIn(ExperimentalWearMaterialApi::class)
 @Composable
 fun SpeedAndHrPlaceholder() {
-    Scaffold(
-        timeText = { TimeText() },
-        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = LocalContext.current.getString(R.string.waiting_for_hr),
-                color = Colors.primary,
-                style = LocalTextStyle.current.copy(fontSize = 18.sp),
-                fontStyle = FontStyle.Italic,
-                fontWeight = FontWeight.ExtraBold
-            )
-        }
+        Text(
+            text = LocalContext.current.getString(R.string.waiting_for_hr),
+            color = Colors.primary,
+            style = LocalTextStyle.current.copy(fontSize = 18.sp),
+            fontStyle = FontStyle.Italic,
+            fontWeight = FontWeight.ExtraBold
+        )
     }
 }
 
 @OptIn(ExperimentalWearMaterialApi::class)
 @Composable
-fun SpeedLabel(speed: State<Int?>, fanControlService: FanControlService) {
+fun SpeedLabel(
+    uiState: UiState,
+    screenStarted: Boolean,
+    speed: Int,
+    fanControlService: FanControlService
+) {
+    if (screenStarted) {
+        uiState.isShowVignette.value = true
+        uiState.isShowTime.value = true
+    }
     val listState = rememberLazyListState()
-    Scaffold(
-        timeText = { TimeText() },
-        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize(),
+        reverseLayout = true,
+        state = listState,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize(),
-            reverseLayout = true,
-            state = listState,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            items(20 + 1) { item ->
-                Text(
-                    "${item * 5}",
-                    color = Colors.primary,
-                    style = LocalTextStyle.current.copy(fontSize = 108.sp),
-                    fontStyle = FontStyle.Italic,
-                    fontWeight = FontWeight.ExtraBold
-                )
-            }
+        items(20 + 1) { item ->
+            Text(
+                "${item * 5}",
+                color = Colors.primary,
+                style = LocalTextStyle.current.copy(fontSize = 108.sp),
+                fontStyle = FontStyle.Italic,
+                fontWeight = FontWeight.ExtraBold
+            )
         }
     }
     // Sets the initial value when the screen is first created
     LaunchedEffect(Unit) {
-        speed.value?.let {
-            listState.scrollToItem(it / 5)
-        }
+        listState.scrollToItem(speed / 5)
     }
     /**
      * When a scroll has taken place, trigger setting the speed of the connected fan. Speed selected
@@ -187,6 +206,6 @@ fun SpeedLabel(speed: State<Int?>, fanControlService: FanControlService) {
                 closestIndex = it.index
             }
         }
-        fanControlService.metrics.speedToDevice.postValue(closestIndex * 5)
+        fanControlService.metrics.speedToDevice.value = closestIndex * 5
     }
 }

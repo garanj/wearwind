@@ -22,8 +22,6 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
 import androidx.wear.ongoing.OngoingActivity
 import androidx.wear.ongoing.Status
@@ -31,10 +29,12 @@ import com.punchthrough.ble.ConnectionEventListener
 import com.punchthrough.ble.ConnectionManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
-
 
 @AndroidEntryPoint
 class FanControlService : LifecycleService() {
@@ -101,7 +101,7 @@ class FanControlService : LifecycleService() {
         ConnectionEventListener().apply {
             onConnectionSetupComplete = { gatt ->
                 if (_fanConnectionStatus.value != FanConnectionStatus.CONNECTED) {
-                    _fanConnectionStatus.postValue(FanConnectionStatus.CONNECTED)
+                    _fanConnectionStatus.value = FanConnectionStatus.CONNECTED
 
                     device = gatt.device
                     fanCharacteristic = characteristics.find { it.uuid == CHARACTERISTIC_UUID }
@@ -120,12 +120,12 @@ class FanControlService : LifecycleService() {
             }
             onDisconnect = {
                 teardownHeartRateSensor()
-                _fanConnectionStatus.postValue(FanConnectionStatus.DISCONNECTED)
+                _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
             }
             onCharacteristicChanged = { _, characteristic ->
                 if (characteristic.uuid == CHARACTERISTIC_UUID) {
                     if (isFanSpeedResponse(characteristic.value)) {
-                        metrics.speedFromDevice.postValue(characteristic.value[2].toInt())
+                        metrics.speedFromDevice.value = characteristic.value[2].toInt()
                     }
                 }
             }
@@ -133,17 +133,17 @@ class FanControlService : LifecycleService() {
     }
 
     private val _fanConnectionStatus =
-        MutableLiveData(FanConnectionStatus.DISCONNECTED)
-    val fanConnectionStatus: LiveData<FanConnectionStatus> = _fanConnectionStatus
+        MutableStateFlow(FanConnectionStatus.DISCONNECTED)
+    val fanConnectionStatus: StateFlow<FanConnectionStatus> = _fanConnectionStatus
 
-    private val _hrEnabled = MutableLiveData(false)
-    val hrEnabled: LiveData<Boolean> = _hrEnabled
+    private val _hrEnabled = MutableStateFlow(false)
+    val hrEnabled: StateFlow<Boolean> = _hrEnabled
 
-    private val _speedSettings = MutableLiveData<MinMaxHolder>()
-    val speedSettings: LiveData<MinMaxHolder> = _speedSettings
+    private val _speedSettings = MutableStateFlow<MinMaxHolder>(MinMaxHolder())
+    val speedSettings: StateFlow<MinMaxHolder> = _speedSettings
 
-    private val _hrSettings = MutableLiveData<MinMaxHolder>()
-    val hrSettings: LiveData<MinMaxHolder> = _hrSettings
+    private val _hrSettings = MutableStateFlow<MinMaxHolder>(MinMaxHolder())
+    val hrSettings: StateFlow<MinMaxHolder> = _hrSettings
 
     var metrics = FanMetrics()
 
@@ -152,10 +152,11 @@ class FanControlService : LifecycleService() {
         ConnectionManager.registerListener(connectionEventListener)
         loadPreferences()
 
-        metrics.speedToDevice.observe(this@FanControlService) {
-            setSpeed(it)
+        lifecycleScope.launch {
+            metrics.speedToDevice.collect {
+                setSpeed(it)
+            }
         }
-
         Log.i(TAG, "Service onCreate")
     }
 
@@ -259,11 +260,11 @@ class FanControlService : LifecycleService() {
                 }
             }
             FanConnectionStatus.CONNECTING -> {
-                _fanConnectionStatus.postValue(FanConnectionStatus.DISCONNECTED)
+                _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
             }
             FanConnectionStatus.SCANNING -> {
                 stopBleScan()
-                _fanConnectionStatus.postValue(FanConnectionStatus.DISCONNECTED)
+                _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
             }
         }
     }
@@ -271,18 +272,20 @@ class FanControlService : LifecycleService() {
     fun testConnectOrDisconnect() {
         if (_fanConnectionStatus.value == FanConnectionStatus.DISCONNECTED) {
             lifecycleScope.launch {
-                _fanConnectionStatus.postValue(FanConnectionStatus.CONNECTING)
+                _fanConnectionStatus.value = FanConnectionStatus.CONNECTING
                 delay(5000)
-                _fanConnectionStatus.postValue(FanConnectionStatus.CONNECTED)
+                _fanConnectionStatus.value = FanConnectionStatus.CONNECTED
+                delay(5000)
+                _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
             }
         } else if (_fanConnectionStatus.value == FanConnectionStatus.CONNECTED) {
-            _fanConnectionStatus.postValue(FanConnectionStatus.DISCONNECTED)
+            _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
         }
     }
 
     fun toggleHrState() {
-        _hrEnabled.value = !(_hrEnabled.value ?: false)
-        _hrEnabled.value?.let {
+        _hrEnabled.value = !_hrEnabled.value
+        _hrEnabled.value.let {
             preferences.setHrEnabled(it)
         }
     }
@@ -321,8 +324,8 @@ class FanControlService : LifecycleService() {
                 val heartRate = event.values.last().toInt()
                 if (heartRate > 0) {
                     val speed = getFanSpeedForHeartRate(heartRate)
-                    metrics.speedToDevice.postValue(speed)
-                    metrics.hr.postValue(heartRate)
+                    metrics.speedToDevice.value = speed
+                    metrics.hr.value = heartRate
                 }
             }
 
@@ -348,8 +351,8 @@ class FanControlService : LifecycleService() {
     private fun fanValue(value: Int) = byteArrayOf(2, value.toByte())
 
     private fun getFanSpeedForHeartRate(heartRate: Int): Int {
-        val hr = _hrSettings.value!!
-        val speed = _speedSettings.value!!
+        val hr = _hrSettings.value
+        val speed = _speedSettings.value
         return when {
             heartRate < hr.currentMin -> speed.currentMin
             heartRate > hr.currentMax -> speed.currentMax
@@ -384,9 +387,9 @@ class FanControlService : LifecycleService() {
     }
 
     private fun resetMetrics() = metrics.apply {
-        speedToDevice.postValue(0)
-        speedFromDevice.postValue(0)
-        hr.postValue(0)
+        speedToDevice.value = 0
+        speedFromDevice.value = 0
+        hr.value = 0
     }
 
     inner class LocalBinder : Binder() {
@@ -408,9 +411,9 @@ class FanControlService : LifecycleService() {
 }
 
 data class FanMetrics(
-    val speedToDevice: MutableLiveData<Int> = MutableLiveData(0),
-    val speedFromDevice: MutableLiveData<Int> = MutableLiveData(0),
-    val hr: MutableLiveData<Int> = MutableLiveData(0)
+    val speedToDevice: MutableStateFlow<Int> = MutableStateFlow(0),
+    val speedFromDevice: MutableStateFlow<Int> = MutableStateFlow(0),
+    val hr: MutableStateFlow<Int> = MutableStateFlow(0)
 )
 
 enum class SettingType {
