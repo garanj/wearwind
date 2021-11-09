@@ -45,10 +45,12 @@ fun ConnectScreen(
     onHrClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
-    if (screenStarted) {
-        uiState.isShowTime.value = true
+    LaunchedEffect(screenStarted) {
+        if (screenStarted) {
+            uiState.isShowTime.value = true
+        }
     }
-    LaunchedEffect(connectionStatus) {
+    LaunchedEffect(screenStarted, connectionStatus) {
         if (screenStarted && connectionStatus == FanControlService.FanConnectionStatus.CONNECTED) {
             uiState.navHostController.navigate(Screen.CONNECTED.route)
         }

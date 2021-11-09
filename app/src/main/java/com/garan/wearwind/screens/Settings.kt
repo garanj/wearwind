@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -48,9 +49,11 @@ fun SettingsScreen(
         .lifecycle.currentState == Lifecycle.State.STARTED,
     settingsItemList: List<SettingsItem>
 ) {
-    if (screenStarted) {
-        uiState.isShowTime.value = false
-        uiState.isShowVignette.value = true
+    LaunchedEffect(screenStarted) {
+        if (screenStarted) {
+            uiState.isShowTime.value = false
+            uiState.isShowVignette.value = true
+        }
     }
     ScalingLazyColumn(
         contentPadding = PaddingValues(20.dp, 10.dp, 20.dp, 30.dp)
@@ -72,9 +75,11 @@ fun SettingsDetailScreen(
 ) {
     val context = LocalContext.current
 
-    if (screenStarted) {
-        uiState.isShowTime.value = false
-        uiState.isShowVignette.value = false
+    LaunchedEffect(screenStarted) {
+        if (screenStarted) {
+            uiState.isShowTime.value = false
+            uiState.isShowVignette.value = false
+        }
     }
     val constraintSet = ConstraintSet {
         val minButton = createRefFor("minButton")

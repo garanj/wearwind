@@ -53,7 +53,7 @@ fun ConnectedScreen(
 
     // Handle changes in connectionStatus from the Service. i.e. If the fan disconnects by itself
     // ensure that the app automatically navigates back to the Connect screen.
-    LaunchedEffect(connectionStatus) {
+    LaunchedEffect(screenStarted, connectionStatus) {
         if (screenStarted && connectionStatus == FanControlService.FanConnectionStatus.DISCONNECTED) {
             closedBySwipe.value = false
             uiState.navHostController.popBackStack(Screen.CONNECT.route, false)
@@ -81,9 +81,11 @@ fun ConnectedScreen(
 
 @Composable
 fun SpeedAndHrBox(uiState: UiState, screenStarted: Boolean, hr: Int, speed: Int) {
-    if (screenStarted) {
-        uiState.isShowTime.value = true
-        uiState.isShowVignette.value = false
+    LaunchedEffect(screenStarted) {
+        if (screenStarted) {
+            uiState.isShowTime.value = true
+            uiState.isShowVignette.value = false
+        }
     }
     if (hr == 0) {
         SpeedAndHrPlaceholder()
@@ -159,9 +161,11 @@ fun SpeedLabel(
     speed: Int,
     fanControlService: FanControlService
 ) {
-    if (screenStarted) {
-        uiState.isShowVignette.value = true
-        uiState.isShowTime.value = true
+    LaunchedEffect(screenStarted) {
+        if (screenStarted) {
+            uiState.isShowVignette.value = true
+            uiState.isShowTime.value = true
+        }
     }
     val listState = rememberLazyListState()
     LazyColumn(
