@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.BrightnessLow
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.QuestionAnswer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavHostController
+import androidx.navigation.navDeepLink
 import androidx.wear.ambient.AmbientModeSupport
 import androidx.wear.compose.material.ExperimentalWearMaterialApi
 import androidx.wear.compose.material.Scaffold
@@ -53,6 +55,7 @@ import kotlinx.coroutines.launch
 const val TAG = "Wearwind"
 
 enum class Screen(val route: String) {
+    LOADING("loading"),
     CONNECT("connect"),
     CONNECTED("connected"),
     SETTINGS("settings"),
@@ -129,7 +132,6 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
     @OptIn(ExperimentalWearMaterialApi::class)
     @Composable()
     fun WearwindScreen() {
-        val service by fanService.collectAsState()
         val appState = rememberUiState()
 
         WearwindTheme {
@@ -141,18 +143,20 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                     if (appState.isShowVignette.value) Vignette(vignettePosition = VignettePosition.TopAndBottom)
                 }
             ) {
-                if (service == null) {
-                    WearwindLoadingMessage()
-                } else {
-                    WearwindNavigation(appState, service!!)
-                }
+                WearwindNavigation(appState)
             }
         }
     }
 
     @OptIn(ExperimentalWearMaterialApi::class)
     @Composable
-    fun WearwindLoadingMessage() {
+    fun WearwindLoadingMessage(uiState: UiState, service: FanControlService?) {
+        LaunchedEffect(service) {
+            service?.let {
+                uiState.navHostController.popBackStack(Screen.LOADING.route, true)
+                uiState.navHostController.navigate(Screen.CONNECT.route)
+            }
+        }
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -168,24 +172,28 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
 
     @OptIn(ExperimentalWearMaterialApi::class)
     @Composable
-    fun WearwindNavigation(uiState: UiState, service: FanControlService) {
-        val connectionStatus by service.fanConnectionStatus.collectAsState()
-        val hrEnabled by service.hrEnabled.collectAsState()
+    fun WearwindNavigation(uiState: UiState) {
+        val service by fanService.collectAsState()
 
         SwipeDismissableNavHost(
             navController = uiState.navHostController,
-            startDestination = Screen.CONNECT.route
+            startDestination = Screen.LOADING.route
         ) {
+            composable(Screen.LOADING.route) {
+                WearwindLoadingMessage(uiState, service)
+            }
             composable(Screen.CONNECT.route) {
+                val connectionStatus by service!!.fanConnectionStatus.collectAsState()
+                val hrEnabled by service!!.hrEnabled.collectAsState()
                 ConnectScreen(
                     connectionStatus = connectionStatus,
                     hrEnabled = hrEnabled,
                     uiState = uiState,
                     onConnectClick = {
-                        service.connectOrDisconnect()
+                        service?.connectOrDisconnect()
                     },
                     onHrClick = {
-                        service.toggleHrState()
+                        service?.toggleHrState()
                     },
                     onSettingsClick = {
                         uiState.navHostController.navigate(Screen.SETTINGS.route)
@@ -193,16 +201,21 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                 )
             }
             composable(Screen.CONNECTED.route) {
+                val connectionStatus by service!!.fanConnectionStatus.collectAsState()
+                val hrEnabled by service!!.hrEnabled.collectAsState()
                 ConnectedScreen(
                     connectionStatus = connectionStatus,
                     hrEnabled = hrEnabled,
-                    service = service,
+                    service = service!!,
                     uiState = uiState,
                     onSwipeBack = {
-                        service.connectOrDisconnect()
+                        service?.connectOrDisconnect()
                     })
             }
-            composable(Screen.SETTINGS.route) {
+            composable(
+                Screen.SETTINGS.route,
+                deepLinks = listOf(navDeepLink { uriPattern = "app://wearwind/settings" })
+            ) {
                 val composableScope = rememberCoroutineScope()
                 val context = LocalContext.current
 
@@ -240,9 +253,9 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                     ))
             }
             composable(Screen.SETTINGS_HR.route) {
-                val hrSettings by service.hrSettings.collectAsState()
+                val hrSettings by service!!.hrSettings.collectAsState()
                 SettingsDetailScreen(
-                    fanControlService = service,
+                    fanControlService = service!!,
                     uiState = uiState,
                     screenStarted = uiState.navHostController
                         .getBackStackEntry(Screen.SETTINGS_HR.route)
@@ -252,9 +265,9 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                 )
             }
             composable(Screen.SETTINGS_SPEED.route) {
-                val speedSettings by service.speedSettings.collectAsState()
+                val speedSettings by service!!.speedSettings.collectAsState()
                 SettingsDetailScreen(
-                    fanControlService = service,
+                    fanControlService = service!!,
                     uiState = uiState,
                     screenStarted = uiState.navHostController
                         .getBackStackEntry(Screen.SETTINGS_SPEED.route)
