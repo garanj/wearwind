@@ -238,7 +238,7 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                     uiState = uiState,
                     screenStarted = uiState.navHostController
                         .getBackStackEntry(Screen.SETTINGS_HR.route)
-                        .lifecycle.currentState == Lifecycle.State.STARTED,
+                        .lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
                     settingType = SettingType.HR,
                     minMaxHolder = hrSettings,
                     onIncrementClick = { type, level ->
@@ -255,7 +255,7 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                     uiState = uiState,
                     screenStarted = uiState.navHostController
                         .getBackStackEntry(Screen.SETTINGS_SPEED.route)
-                        .lifecycle.currentState == Lifecycle.State.STARTED,
+                        .lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
                     settingType = SettingType.SPEED,
                     minMaxHolder = speedSettings,
                     onIncrementClick = { type, level ->
