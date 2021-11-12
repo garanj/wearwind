@@ -43,7 +43,7 @@ fun ConnectScreen(
     uiState: UiState,
     screenStarted: Boolean = uiState.navHostController
         .getBackStackEntry(Screen.CONNECT.route)
-        .lifecycle.currentState in setOf(Lifecycle.State.STARTED, Lifecycle.State.RESUMED),
+        .lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
     onConnectClick: () -> Unit,
     onHrClick: () -> Unit,
     onSettingsClick: () -> Unit

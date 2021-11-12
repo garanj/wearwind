@@ -48,7 +48,7 @@ fun ConnectedScreen(
     uiState: UiState,
     screenStarted: Boolean = uiState.navHostController
         .getBackStackEntry(Screen.CONNECTED.route)
-        .lifecycle.currentState in setOf(Lifecycle.State.STARTED, Lifecycle.State.RESUMED),
+        .lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
     onSwipeBack: () -> Unit,
     onSetSpeed: (Int) -> Unit = {}
 ) {
