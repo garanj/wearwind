@@ -18,6 +18,7 @@ import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ChainStyle
 import androidx.constraintlayout.compose.ConstraintLayout
@@ -29,7 +30,9 @@ import com.garan.wearwind.FanControlService
 import com.garan.wearwind.R
 import com.garan.wearwind.Screen
 import com.garan.wearwind.UiState
+import com.garan.wearwind.rememberUiState
 import com.garan.wearwind.ui.theme.Colors
+import com.garan.wearwind.ui.theme.WearwindTheme
 import kotlin.math.abs
 
 
@@ -45,8 +48,9 @@ fun ConnectedScreen(
     uiState: UiState,
     screenStarted: Boolean = uiState.navHostController
         .getBackStackEntry(Screen.CONNECTED.route)
-        .lifecycle.currentState == Lifecycle.State.STARTED,
-    onSwipeBack: () -> Unit
+        .lifecycle.currentState in setOf(Lifecycle.State.STARTED, Lifecycle.State.RESUMED),
+    onSwipeBack: () -> Unit,
+    onSetSpeed: (Int) -> Unit = {}
 ) {
     // Hold state reflecting how this screen is being closed.
     val closedBySwipe = remember { mutableStateOf(true) }
@@ -65,7 +69,7 @@ fun ConnectedScreen(
     if (hrEnabled) {
         SpeedAndHrBox(uiState, screenStarted, hr, speed)
     } else {
-        SpeedLabel(uiState, screenStarted, speed, service)
+        SpeedLabel(uiState, screenStarted, speed, onSetSpeed)
     }
     // Side effect used to disconnect from the fan when dismissing the connected screen.
     DisposableEffect(Unit) {
@@ -159,7 +163,7 @@ fun SpeedLabel(
     uiState: UiState,
     screenStarted: Boolean,
     speed: Int,
-    fanControlService: FanControlService
+    onSetSpeed: (Int) -> Unit = {}
 ) {
     LaunchedEffect(screenStarted) {
         if (screenStarted) {
@@ -210,6 +214,43 @@ fun SpeedLabel(
                 closestIndex = it.index
             }
         }
-        fanControlService.metrics.speedToDevice.value = closestIndex * 5
+        onSetSpeed(closestIndex * 5)
+    }
+}
+
+@Preview(
+    widthDp = WEAR_PREVIEW_DEVICE_WIDTH_DP,
+    heightDp = WEAR_PREVIEW_DEVICE_HEIGHT_DP,
+    apiLevel = WEAR_PREVIEW_API_LEVEL,
+    uiMode = WEAR_PREVIEW_UI_MODE,
+    backgroundColor = WEAR_PREVIEW_BACKGROUND_COLOR_BLACK,
+    showBackground = WEAR_PREVIEW_SHOW_BACKGROUND
+)
+@Composable
+fun ManualModePreview() {
+    WearwindTheme {
+        val uiState = rememberUiState()
+        SpeedLabel(
+            uiState = uiState,
+            screenStarted = true,
+            speed = 73)
+    }
+}
+
+@Preview(
+    widthDp = WEAR_PREVIEW_DEVICE_WIDTH_DP,
+    heightDp = WEAR_PREVIEW_DEVICE_HEIGHT_DP,
+    apiLevel = WEAR_PREVIEW_API_LEVEL,
+    uiMode = WEAR_PREVIEW_UI_MODE,
+    backgroundColor = WEAR_PREVIEW_BACKGROUND_COLOR_BLACK,
+    showBackground = WEAR_PREVIEW_SHOW_BACKGROUND
+)
+@Composable
+fun HrModePreview() {
+    WearwindTheme {
+        val uiState = rememberUiState()
+        SpeedAndHrLabel(
+            hr = 124,
+            speed = 73)
     }
 }

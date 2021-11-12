@@ -139,10 +139,10 @@ class FanControlService : LifecycleService() {
     private val _hrEnabled = MutableStateFlow(false)
     val hrEnabled: StateFlow<Boolean> = _hrEnabled
 
-    private val _speedSettings = MutableStateFlow<MinMaxHolder>(MinMaxHolder())
+    private val _speedSettings = MutableStateFlow(MinMaxHolder())
     val speedSettings: StateFlow<MinMaxHolder> = _speedSettings
 
-    private val _hrSettings = MutableStateFlow<MinMaxHolder>(MinMaxHolder())
+    private val _hrSettings = MutableStateFlow(MinMaxHolder())
     val hrSettings: StateFlow<MinMaxHolder> = _hrSettings
 
     var metrics = FanMetrics()
@@ -187,6 +187,10 @@ class FanControlService : LifecycleService() {
         Log.i(TAG, "service onUnbind")
         maybeStopService()
         return true
+    }
+
+    fun changeSpeed(speed: Int) {
+        metrics.speedToDevice.value = speed
     }
 
     private fun maybeStopService() {

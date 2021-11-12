@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ChainStyle
 import androidx.constraintlayout.compose.ConstraintLayout
@@ -27,7 +28,9 @@ import com.garan.wearwind.FanControlService
 import com.garan.wearwind.R
 import com.garan.wearwind.Screen
 import com.garan.wearwind.UiState
+import com.garan.wearwind.rememberUiState
 import com.garan.wearwind.ui.theme.Colors
+import com.garan.wearwind.ui.theme.WearwindTheme
 
 /**
  * Composable functions used on the Connect screen, for initiating a connection to the fan.
@@ -40,7 +43,7 @@ fun ConnectScreen(
     uiState: UiState,
     screenStarted: Boolean = uiState.navHostController
         .getBackStackEntry(Screen.CONNECT.route)
-        .lifecycle.currentState == Lifecycle.State.STARTED,
+        .lifecycle.currentState in setOf(Lifecycle.State.STARTED, Lifecycle.State.RESUMED),
     onConnectClick: () -> Unit,
     onHrClick: () -> Unit,
     onSettingsClick: () -> Unit
@@ -170,6 +173,30 @@ fun HrButton(
         Icon(
             imageVector = iconId,
             stringResource(id = R.string.hr)
+        )
+    }
+}
+
+@Preview(
+    widthDp = WEAR_PREVIEW_DEVICE_WIDTH_DP,
+    heightDp = WEAR_PREVIEW_DEVICE_HEIGHT_DP,
+    apiLevel = WEAR_PREVIEW_API_LEVEL,
+    uiMode = WEAR_PREVIEW_UI_MODE,
+    backgroundColor = WEAR_PREVIEW_BACKGROUND_COLOR_BLACK,
+    showBackground = WEAR_PREVIEW_SHOW_BACKGROUND
+)
+@Composable
+fun ConnectScreenPreview() {
+    WearwindTheme {
+
+        val uiState = rememberUiState()
+        ConnectScreen(
+            connectionStatus = FanControlService.FanConnectionStatus.DISCONNECTED,
+            uiState = uiState,
+            screenStarted = true,
+            onConnectClick = { },
+            onHrClick = { },
+            onSettingsClick = { }
         )
     }
 }

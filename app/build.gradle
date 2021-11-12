@@ -10,8 +10,8 @@ android {
         applicationId "com.garan.wearwind"
         minSdkVersion 30
         targetSdkVersion 30
-        versionCode 9
-        versionName "2.1.0"
+        versionCode 10
+        versionName "2.1.1"
         vectorDrawables {
             useSupportLibrary true
         }
@@ -64,7 +64,8 @@ dependencies {
     implementation "androidx.constraintlayout:constraintlayout-compose:1.0.0-rc01"
 
     // Required for observeAsState
-    implementation "androidx.compose.runtime:runtime-livedata:$compose_version"
+    //implementation "androidx.compose.runtime:runtime-livedata:$compose_version"
+    implementation "androidx.compose.ui:ui-tooling:$compose_version"
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation "androidx.wear:wear:1.2.0"

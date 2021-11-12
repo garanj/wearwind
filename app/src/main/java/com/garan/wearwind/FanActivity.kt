@@ -11,25 +11,20 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BrightnessLow
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.QuestionAnswer
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavHostController
@@ -48,6 +43,7 @@ import com.garan.wearwind.screens.ConnectedScreen
 import com.garan.wearwind.screens.SettingsDetailScreen
 import com.garan.wearwind.screens.SettingsItem
 import com.garan.wearwind.screens.SettingsScreen
+import com.garan.wearwind.screens.WearwindLoadingMessage
 import com.garan.wearwind.ui.theme.WearwindTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -69,7 +65,7 @@ class UiState(
     val navHostController: NavHostController
 )
 
-@ExperimentalWearMaterialApi
+@OptIn(ExperimentalWearMaterialApi::class)
 @Composable
 fun rememberUiState(
     isShowTime: MutableState<Boolean> = mutableStateOf(true),
@@ -130,7 +126,7 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
     }
 
     @OptIn(ExperimentalWearMaterialApi::class)
-    @Composable()
+    @Composable
     fun WearwindScreen() {
         val appState = rememberUiState()
 
@@ -150,28 +146,6 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
 
     @OptIn(ExperimentalWearMaterialApi::class)
     @Composable
-    fun WearwindLoadingMessage(uiState: UiState, service: FanControlService?) {
-        LaunchedEffect(service) {
-            service?.let {
-                uiState.navHostController.popBackStack(Screen.LOADING.route, true)
-                uiState.navHostController.navigate(Screen.CONNECT.route)
-            }
-        }
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(
-                    id = R.drawable.ic_logo
-                ),
-                contentDescription = getString(R.string.loading_message)
-            )
-        }
-    }
-
-    @OptIn(ExperimentalWearMaterialApi::class)
-    @Composable
     fun WearwindNavigation(uiState: UiState) {
         val service by fanService.collectAsState()
 
@@ -180,7 +154,10 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
             startDestination = Screen.LOADING.route
         ) {
             composable(Screen.LOADING.route) {
-                WearwindLoadingMessage(uiState, service)
+                WearwindLoadingMessage(
+                    uiState = uiState,
+                    service = service
+                )
             }
             composable(Screen.CONNECT.route) {
                 val connectionStatus by service!!.fanConnectionStatus.collectAsState()
@@ -210,6 +187,9 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                     uiState = uiState,
                     onSwipeBack = {
                         service?.connectOrDisconnect()
+                    },
+                    onSetSpeed = { speed : Int ->
+                        service?.changeSpeed(speed)
                     })
             }
             composable(
@@ -255,25 +235,35 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
             composable(Screen.SETTINGS_HR.route) {
                 val hrSettings by service!!.hrSettings.collectAsState()
                 SettingsDetailScreen(
-                    fanControlService = service!!,
                     uiState = uiState,
                     screenStarted = uiState.navHostController
                         .getBackStackEntry(Screen.SETTINGS_HR.route)
                         .lifecycle.currentState == Lifecycle.State.STARTED,
-                    SettingType.HR,
-                    hrSettings
+                    settingType = SettingType.HR,
+                    minMaxHolder = hrSettings,
+                    onIncrementClick = { type, level ->
+                        service?.incrementSetting(type, level)
+                    },
+                    onDecrementClick = { type, level ->
+                        service?.decrementSetting(type, level)
+                    }
                 )
             }
             composable(Screen.SETTINGS_SPEED.route) {
                 val speedSettings by service!!.speedSettings.collectAsState()
                 SettingsDetailScreen(
-                    fanControlService = service!!,
                     uiState = uiState,
                     screenStarted = uiState.navHostController
                         .getBackStackEntry(Screen.SETTINGS_SPEED.route)
                         .lifecycle.currentState == Lifecycle.State.STARTED,
-                    SettingType.SPEED,
-                    speedSettings
+                    settingType = SettingType.SPEED,
+                    minMaxHolder = speedSettings,
+                    onIncrementClick = { type, level ->
+                        service?.incrementSetting(type, level)
+                    },
+                    onDecrementClick = { type, level ->
+                        service?.decrementSetting(type, level)
+                    }
                 )
             }
         }

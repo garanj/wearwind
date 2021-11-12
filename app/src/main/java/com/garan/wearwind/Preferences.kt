@@ -1,7 +1,6 @@
 package com.garan.wearwind
 
 import android.content.Context
-import android.util.Log
 import androidx.core.content.edit
 import com.google.gson.Gson
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -74,7 +73,6 @@ class Preferences @Inject constructor(@ApplicationContext context: Context) {
 
     private fun getMinMax(key: String): MinMaxHolder {
         val json = prefs.getString(key, null)
-        Log.i(TAG, "Json: $json")
         json?.let {
             return Gson().fromJson(json, MinMaxHolder::class.java)
         }
