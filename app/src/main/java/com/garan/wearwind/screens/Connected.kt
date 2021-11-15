@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.LocalTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -19,7 +18,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ChainStyle
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.ConstraintSet
@@ -73,12 +71,14 @@ fun ConnectedScreen(
         SpeedAndHrBox(
             uiState = uiState,
             screenStarted = screenStarted,
+            metricDisplayTypography = metricDisplayTypography,
             hr = hr,
             speed = speed)
     } else {
         SpeedLabel(
             uiState = uiState,
             screenStarted = screenStarted,
+            metricDisplayTypography = metricDisplayTypography,
             speed = speed,
             onSetSpeed = onSetSpeed)
     }
@@ -111,6 +111,7 @@ fun SpeedAndHrBox(
         SpeedAndHrPlaceholder()
     } else {
         SpeedAndHrLabel(
+            metricDisplayTypography = metricDisplayTypography,
             hr = hr,
             speed = speed
             )
