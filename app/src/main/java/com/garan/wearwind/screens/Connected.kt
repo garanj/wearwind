@@ -25,6 +25,7 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.ConstraintSet
 import androidx.lifecycle.Lifecycle
 import androidx.wear.compose.material.ExperimentalWearMaterialApi
+import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.garan.wearwind.FanControlService
 import com.garan.wearwind.R
@@ -32,6 +33,7 @@ import com.garan.wearwind.Screen
 import com.garan.wearwind.UiState
 import com.garan.wearwind.rememberUiState
 import com.garan.wearwind.ui.theme.Colors
+import com.garan.wearwind.ui.theme.MetricTypography
 import com.garan.wearwind.ui.theme.WearwindTheme
 import kotlin.math.abs
 
@@ -49,6 +51,7 @@ fun ConnectedScreen(
     screenStarted: Boolean = uiState.navHostController
         .getBackStackEntry(Screen.CONNECTED.route)
         .lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
+    metricDisplayTypography: MetricTypography = MetricTypography(),
     onSwipeBack: () -> Unit,
     onSetSpeed: (Int) -> Unit = {}
 ) {
@@ -67,9 +70,17 @@ fun ConnectedScreen(
     val hr by service.metrics.hr.collectAsState()
     val speed by service.metrics.speedToDevice.collectAsState()
     if (hrEnabled) {
-        SpeedAndHrBox(uiState, screenStarted, hr, speed)
+        SpeedAndHrBox(
+            uiState = uiState,
+            screenStarted = screenStarted,
+            hr = hr,
+            speed = speed)
     } else {
-        SpeedLabel(uiState, screenStarted, speed, onSetSpeed)
+        SpeedLabel(
+            uiState = uiState,
+            screenStarted = screenStarted,
+            speed = speed,
+            onSetSpeed = onSetSpeed)
     }
     // Side effect used to disconnect from the fan when dismissing the connected screen.
     DisposableEffect(Unit) {
@@ -84,7 +95,12 @@ fun ConnectedScreen(
 }
 
 @Composable
-fun SpeedAndHrBox(uiState: UiState, screenStarted: Boolean, hr: Int, speed: Int) {
+fun SpeedAndHrBox(
+    uiState: UiState,
+    screenStarted: Boolean,
+    metricDisplayTypography: MetricTypography = MetricTypography(),
+    hr: Int,
+    speed: Int) {
     LaunchedEffect(screenStarted) {
         if (screenStarted) {
             uiState.isShowTime.value = true
@@ -94,13 +110,19 @@ fun SpeedAndHrBox(uiState: UiState, screenStarted: Boolean, hr: Int, speed: Int)
     if (hr == 0) {
         SpeedAndHrPlaceholder()
     } else {
-        SpeedAndHrLabel(hr, speed)
+        SpeedAndHrLabel(
+            hr = hr,
+            speed = speed
+            )
     }
 }
 
 @OptIn(ExperimentalWearMaterialApi::class)
 @Composable
-fun SpeedAndHrLabel(hr: Int, speed: Int) {
+fun SpeedAndHrLabel(
+    metricDisplayTypography: MetricTypography = MetricTypography(),
+    hr: Int,
+    speed: Int) {
     val constraintSet = ConstraintSet {
         val speedLabel = createRefFor("speedLabel")
         val hrLabel = createRefFor("hrLabel")
@@ -125,7 +147,7 @@ fun SpeedAndHrLabel(hr: Int, speed: Int) {
             modifier = Modifier.layoutId("speedLabel"),
             text = "$speed",
             color = Colors.primary,
-            style = LocalTextStyle.current.copy(fontSize = 64.sp),
+            style = metricDisplayTypography.mediumDisplayMetric,
             fontStyle = FontStyle.Italic,
             fontWeight = FontWeight.ExtraBold
         )
@@ -133,7 +155,7 @@ fun SpeedAndHrLabel(hr: Int, speed: Int) {
             modifier = Modifier.layoutId("hrLabel"),
             text = "$hr",
             color = Colors.secondary,
-            style = LocalTextStyle.current.copy(fontSize = 48.sp),
+            style = metricDisplayTypography.smallDisplayMetric,
             fontStyle = FontStyle.Italic,
             fontWeight = FontWeight.ExtraBold
         )
@@ -150,7 +172,7 @@ fun SpeedAndHrPlaceholder() {
         Text(
             text = LocalContext.current.getString(R.string.waiting_for_hr),
             color = Colors.primary,
-            style = LocalTextStyle.current.copy(fontSize = 18.sp),
+            style = MaterialTheme.typography.title1,
             fontStyle = FontStyle.Italic,
             fontWeight = FontWeight.ExtraBold
         )
@@ -162,6 +184,7 @@ fun SpeedAndHrPlaceholder() {
 fun SpeedLabel(
     uiState: UiState,
     screenStarted: Boolean,
+    metricDisplayTypography: MetricTypography = MetricTypography(),
     speed: Int,
     onSetSpeed: (Int) -> Unit = {}
 ) {
@@ -183,7 +206,7 @@ fun SpeedLabel(
             Text(
                 "${item * 5}",
                 color = Colors.primary,
-                style = LocalTextStyle.current.copy(fontSize = 108.sp),
+                style = metricDisplayTypography.largeDisplayMetric,
                 fontStyle = FontStyle.Italic,
                 fontWeight = FontWeight.ExtraBold
             )
