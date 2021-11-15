@@ -51,7 +51,7 @@ fun WearwindLoadingMessage(
     showBackground = WEAR_PREVIEW_SHOW_BACKGROUND
 )
 @Composable
-fun PreviewLoadingScreen() {
+fun LoadingScreenPreview() {
     val uiState = rememberUiState()
     WearwindLoadingMessage(
         uiState = uiState,
