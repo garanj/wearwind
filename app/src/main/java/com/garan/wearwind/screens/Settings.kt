@@ -24,7 +24,7 @@ fun SettingsScreen(
     uiState: UiState,
     screenStarted: Boolean = uiState.navHostController
         .getBackStackEntry(Screen.SETTINGS.route)
-        .lifecycle.currentState in setOf(Lifecycle.State.STARTED, Lifecycle.State.RESUMED),
+        .lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
     settingsItemList: List<SettingsItem>
 ) {
     LaunchedEffect(screenStarted) {
