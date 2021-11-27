@@ -2,8 +2,7 @@
 
 _Control your [Wahoo Headwind fan][headwind] from a [Wear OS 3][wearos] watch._
 
-<img src="images/connect.png" alt="Connect to Headwind" width="250" height="250"/>
-<img src="images/manual.png" alt="Manual control" width="250" height="250"/>
+<img src="images/combined.png" alt="Connect to Headwind" height="250" />
 
 [![Wearwind](https://img.youtube.com/vi/xjippga2gSw/0.jpg)](https://www.youtube.com/watch?v=xjippga2gSw)
 
