@@ -21,7 +21,8 @@ import com.garan.wearwind.rememberUiState
 @Composable
 fun WearwindLoadingMessage(
     uiState: UiState,
-    service: FanControlService?) {
+    service: FanControlService?
+) {
     LaunchedEffect(service) {
         service?.let {
             uiState.navHostController.popBackStack(Screen.LOADING.route, true)

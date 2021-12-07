@@ -34,7 +34,12 @@ fun SettingsScreen(
         }
     }
     ScalingLazyColumn(
-        contentPadding = PaddingValues(20.dp, 10.dp, 20.dp, 30.dp)
+        contentPadding = PaddingValues(
+            start = 20.dp,
+            top = 10.dp,
+            end = 20.dp,
+            bottom = 30.dp
+        )
     ) {
         items(settingsItemList.size) {
             SettingsEntry(settingsItem = settingsItemList[it])
@@ -73,4 +78,3 @@ sealed class SettingsItem {
 
     data class SettingsHeading(val labelId: Int) : SettingsItem()
 }
-
