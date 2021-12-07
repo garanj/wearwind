@@ -99,7 +99,9 @@ fun ConnectScreen(
     ConstraintLayout(constraintSet = constraintSet, modifier = Modifier.fillMaxSize()) {
         ConnectionIndicator(connectionStatus)
         ConnectButton(
-            modifier = Modifier.layoutId("connectButton"),
+            modifier = Modifier
+                .layoutId("connectButton")
+                .padding(16.dp),
             connectionStatus,
             onClick = onConnectClick
         )
@@ -128,7 +130,7 @@ fun ConnectButton(
     onClick: () -> Unit
 ) {
     Button(
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+        modifier = modifier,
         onClick = onClick
     ) {
         val buttonTextId = when (connectionStatus) {

@@ -84,7 +84,7 @@ class FanControlService : LifecycleService() {
             with(result.device) {
                 if (name?.contains(BLE_DEVICE_NAME, true) == true) {
                     stopBleScan()
-                    //TODO pause 500 ms?
+                    // TODO pause 500 ms?
                     this@FanControlService.device = this
                     _fanConnectionStatus.value = FanConnectionStatus.CONNECTING
                     ConnectionManager.connect(this, this@FanControlService)
@@ -300,17 +300,8 @@ class FanControlService : LifecycleService() {
         _hrSettings.value = preferences.getHrMinMax()
     }
 
-    fun incrementSetting(type: SettingType, level: SettingLevel) {
-        preferences.incrementSetting(type, level)
-        if (type == SettingType.HR) {
-            _hrSettings.value = preferences.getHrMinMax()
-        } else {
-            _speedSettings.value = preferences.getSpeedMinMax()
-        }
-    }
-
-    fun decrementSetting(type: SettingType, level: SettingLevel) {
-        preferences.decrementSetting(type, level)
+    fun setThreshold(type: SettingType, level: SettingLevel, value: Float) {
+        preferences.setThreshold(type, level, value)
         if (type == SettingType.HR) {
             _hrSettings.value = preferences.getHrMinMax()
         } else {
@@ -358,11 +349,11 @@ class FanControlService : LifecycleService() {
         val hr = _hrSettings.value
         val speed = _speedSettings.value
         return when {
-            heartRate < hr.currentMin -> speed.currentMin
-            heartRate > hr.currentMax -> speed.currentMax
+            heartRate < hr.currentMin -> speed.currentMin.toInt()
+            heartRate > hr.currentMax -> speed.currentMax.toInt()
             else -> {
                 val hrPc =
-                    (heartRate - hr.currentMin).toFloat() / (hr.currentMax - hr.currentMin)
+                    (heartRate - hr.currentMin) / (hr.currentMax - hr.currentMin)
                 val fanRange = speed.currentMax - speed.currentMin
                 (speed.currentMin + hrPc * fanRange).toInt()
             }
@@ -375,8 +366,8 @@ class FanControlService : LifecycleService() {
      */
     private fun isFanSpeedResponse(byteArray: ByteArray): Boolean {
         with(byteArray) {
-            return size == 4 && get(0) == 0xFD.toByte()
-                && get(1) == 0x01.toByte() && get(3) == 0x04.toByte()
+            return size == 4 && get(0) == 0xFD.toByte() &&
+                get(1) == 0x01.toByte() && get(3) == 0x04.toByte()
         }
     }
 

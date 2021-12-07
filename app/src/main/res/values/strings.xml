@@ -13,10 +13,6 @@
     <string name="speed">Speed</string>
     <string name="about">About</string>
 
-    <!-- Settings labels -->
-    <string name="plus">+</string>
-    <string name="minus">-</string>
-
     <string name="min_small">min</string>
     <string name="max_small">max</string>
 

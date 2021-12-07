@@ -188,9 +188,10 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                     onSwipeBack = {
                         service?.connectOrDisconnect()
                     },
-                    onSetSpeed = { speed : Int ->
+                    onSetSpeed = { speed: Int ->
                         service?.changeSpeed(speed)
-                    })
+                    }
+                )
             }
             composable(
                 Screen.SETTINGS.route,
@@ -199,7 +200,8 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                 val composableScope = rememberCoroutineScope()
                 val context = LocalContext.current
 
-                SettingsScreen(uiState = uiState,
+                SettingsScreen(
+                    uiState = uiState,
                     settingsItemList = listOf(
                         SettingsItem.SettingsHeading(R.string.settings),
                         SettingsItem.SettingsButton(
@@ -230,7 +232,8 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                                 }
                             }
                         ),
-                    ))
+                    )
+                )
             }
             composable(Screen.SETTINGS_HR.route) {
                 val hrSettings by service!!.hrSettings.collectAsState()
@@ -241,11 +244,8 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                         .lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
                     settingType = SettingType.HR,
                     minMaxHolder = hrSettings,
-                    onIncrementClick = { type, level ->
-                        service?.incrementSetting(type, level)
-                    },
-                    onDecrementClick = { type, level ->
-                        service?.decrementSetting(type, level)
+                    onClick = { type, level, value ->
+                        service?.setThreshold(type, level, value)
                     }
                 )
             }
@@ -258,11 +258,8 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                         .lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
                     settingType = SettingType.SPEED,
                     minMaxHolder = speedSettings,
-                    onIncrementClick = { type, level ->
-                        service?.incrementSetting(type, level)
-                    },
-                    onDecrementClick = { type, level ->
-                        service?.decrementSetting(type, level)
+                    onClick = { type, level, value ->
+                        service?.setThreshold(type, level, value)
                     }
                 )
             }

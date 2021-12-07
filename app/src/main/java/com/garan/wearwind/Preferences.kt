@@ -17,8 +17,8 @@ class Preferences @Inject constructor(@ApplicationContext context: Context) {
     private val prefs = context.getSharedPreferences(PREFERENCES_KEY, Context.MODE_PRIVATE)
 
     private val DEFAULT_MIN_MAX = mapOf(
-        HR_MIN_MAX_KEY to MinMaxHolder(0, 220, 80, 160, 20),
-        SPEED_MIN_MAX_KEY to MinMaxHolder(0, 100, 25, 60, 10)
+        HR_MIN_MAX_KEY to MinMaxHolder(0.0f, 220.0f, 80.0f, 160.0f, 5),
+        SPEED_MIN_MAX_KEY to MinMaxHolder(0.0f, 100.0f, 25.0f, 60.0f, 5)
     )
 
     private fun setMinMax(key: String, minMax: MinMaxHolder) = prefs.edit(commit = true) {
@@ -26,42 +26,21 @@ class Preferences @Inject constructor(@ApplicationContext context: Context) {
         putString(key, json)
     }
 
-    fun incrementSetting(type: SettingType, level: SettingLevel) {
+    fun setThreshold(type: SettingType, level: SettingLevel, value: Float) {
         when (type) {
             SettingType.HR -> {
                 val settings = getHrMinMax()
                 when (level) {
-                    SettingLevel.MIN -> settings.incrementMin()
-                    SettingLevel.MAX -> settings.incrementMax()
+                    SettingLevel.MIN -> settings.currentMin = value
+                    SettingLevel.MAX -> settings.currentMax = value
                 }
                 setHrMinMax(settings)
             }
             SettingType.SPEED -> {
                 val settings = getSpeedMinMax()
                 when (level) {
-                    SettingLevel.MIN -> settings.incrementMin()
-                    SettingLevel.MAX -> settings.incrementMax()
-                }
-                setSpeedMinMax(settings)
-            }
-        }
-    }
-
-    fun decrementSetting(type: SettingType, level: SettingLevel) {
-        when (type) {
-            SettingType.HR -> {
-                val settings = getHrMinMax()
-                when (level) {
-                    SettingLevel.MIN -> settings.decrementMin()
-                    SettingLevel.MAX -> settings.decrementMax()
-                }
-                setHrMinMax(settings)
-            }
-            SettingType.SPEED -> {
-                val settings = getSpeedMinMax()
-                when (level) {
-                    SettingLevel.MIN -> settings.decrementMin()
-                    SettingLevel.MAX -> settings.decrementMax()
+                    SettingLevel.MIN -> settings.currentMin = value
+                    SettingLevel.MAX -> settings.currentMax = value
                 }
                 setSpeedMinMax(settings)
             }
@@ -88,44 +67,29 @@ class Preferences @Inject constructor(@ApplicationContext context: Context) {
 }
 
 class MinMaxHolder(
-    private val absMin: Int = 0,
-    private val absMax: Int = 100,
-    initialMin: Int = 0,
-    initialMax: Int = 100,
+    private val absMin: Float = 0.0f,
+    private val absMax: Float = 100.0f,
+    initialMin: Float = 0.0f,
+    initialMax: Float = 100.0f,
+    val step: Int = 5,
     private val minInterval: Int = 20
 ) {
     private var _currentMin = initialMin
     private var _currentMax = initialMax
 
-    val currentMin: Int
+    var currentMin: Float
         get() = _currentMin
+        set(value) { _currentMin = value }
 
-    val currentMax: Int
+    var currentMax: Float
         get() = _currentMax
+        set(value) { _currentMax = value }
 
-    fun incrementMin(step: Int = 5) {
-        val cmp = _currentMin + step + minInterval
-        if (cmp <= _currentMax && cmp <= absMax) {
-            _currentMin += step
-        }
+    fun minRange(): ClosedFloatingPointRange<Float> {
+        return absMin..(_currentMax - minInterval)
     }
 
-    fun decrementMax(step: Int = 5) {
-        val cmp = _currentMax - step - minInterval
-        if (cmp >= _currentMin && cmp >= absMin) {
-            _currentMax -= step
-        }
-    }
-
-    fun incrementMax(step: Int = 5) {
-        if (_currentMax + step <= absMax) {
-            _currentMax += step
-        }
-    }
-
-    fun decrementMin(step: Int = 5) {
-        if (_currentMin - step >= absMin) {
-            _currentMin -= step
-        }
+    fun maxRange(): ClosedFloatingPointRange<Float> {
+        return (_currentMin + minInterval)..absMax
     }
 }

@@ -1,6 +1,7 @@
 package com.garan.wearwind.screens
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -18,9 +19,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.constraintlayout.compose.ChainStyle
-import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.constraintlayout.compose.ConstraintSet
 import androidx.lifecycle.Lifecycle
 import androidx.wear.compose.material.ExperimentalWearMaterialApi
 import androidx.wear.compose.material.MaterialTheme
@@ -34,7 +32,6 @@ import com.garan.wearwind.ui.theme.Colors
 import com.garan.wearwind.ui.theme.MetricTypography
 import com.garan.wearwind.ui.theme.WearwindTheme
 import kotlin.math.abs
-
 
 /**
  * Composable functions for use when connected to the fan, either when in HR-guided or non-HR mode.
@@ -73,14 +70,16 @@ fun ConnectedScreen(
             screenStarted = screenStarted,
             metricDisplayTypography = metricDisplayTypography,
             hr = hr,
-            speed = speed)
+            speed = speed
+        )
     } else {
         SpeedLabel(
             uiState = uiState,
             screenStarted = screenStarted,
             metricDisplayTypography = metricDisplayTypography,
             speed = speed,
-            onSetSpeed = onSetSpeed)
+            onSetSpeed = onSetSpeed
+        )
     }
     // Side effect used to disconnect from the fan when dismissing the connected screen.
     DisposableEffect(Unit) {
@@ -100,7 +99,8 @@ fun SpeedAndHrBox(
     screenStarted: Boolean,
     metricDisplayTypography: MetricTypography = MetricTypography(),
     hr: Int,
-    speed: Int) {
+    speed: Int
+) {
     LaunchedEffect(screenStarted) {
         if (screenStarted) {
             uiState.isShowTime.value = true
@@ -114,7 +114,7 @@ fun SpeedAndHrBox(
             metricDisplayTypography = metricDisplayTypography,
             hr = hr,
             speed = speed
-            )
+        )
     }
 }
 
@@ -123,43 +123,32 @@ fun SpeedAndHrBox(
 fun SpeedAndHrLabel(
     metricDisplayTypography: MetricTypography = MetricTypography(),
     hr: Int,
-    speed: Int) {
-    val constraintSet = ConstraintSet {
-        val speedLabel = createRefFor("speedLabel")
-        val hrLabel = createRefFor("hrLabel")
-
-        constrain(speedLabel) {
-            top.linkTo(parent.top)
-            bottom.linkTo(hrLabel.top)
-            start.linkTo(parent.start)
-            end.linkTo(parent.end)
+    speed: Int
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Column(
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                modifier = Modifier.layoutId("speedLabel"),
+                text = "$speed",
+                color = Colors.primary,
+                style = metricDisplayTypography.mediumDisplayMetric,
+                fontStyle = FontStyle.Italic,
+                fontWeight = FontWeight.ExtraBold
+            )
+            Text(
+                modifier = Modifier.layoutId("hrLabel"),
+                text = "$hr",
+                color = Colors.secondary,
+                style = metricDisplayTypography.smallDisplayMetric,
+                fontStyle = FontStyle.Italic,
+                fontWeight = FontWeight.ExtraBold
+            )
         }
-        constrain(hrLabel) {
-            top.linkTo(speedLabel.bottom)
-            bottom.linkTo(parent.bottom)
-            end.linkTo(speedLabel.end)
-        }
-        createVerticalChain(
-            speedLabel, hrLabel, chainStyle = ChainStyle.Packed
-        )
-    }
-    ConstraintLayout(constraintSet = constraintSet, modifier = Modifier.fillMaxSize()) {
-        Text(
-            modifier = Modifier.layoutId("speedLabel"),
-            text = "$speed",
-            color = Colors.primary,
-            style = metricDisplayTypography.mediumDisplayMetric,
-            fontStyle = FontStyle.Italic,
-            fontWeight = FontWeight.ExtraBold
-        )
-        Text(
-            modifier = Modifier.layoutId("hrLabel"),
-            text = "$hr",
-            color = Colors.secondary,
-            style = metricDisplayTypography.smallDisplayMetric,
-            fontStyle = FontStyle.Italic,
-            fontWeight = FontWeight.ExtraBold
-        )
     }
 }
 
@@ -257,7 +246,8 @@ fun ManualModePreview() {
         SpeedLabel(
             uiState = uiState,
             screenStarted = true,
-            speed = 73)
+            speed = 73
+        )
     }
 }
 
@@ -275,6 +265,7 @@ fun HrModePreview() {
         val uiState = rememberUiState()
         SpeedAndHrLabel(
             hr = 124,
-            speed = 73)
+            speed = 73
+        )
     }
 }

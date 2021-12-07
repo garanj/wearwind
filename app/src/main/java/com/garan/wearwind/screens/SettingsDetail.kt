@@ -1,28 +1,30 @@
 package com.garan.wearwind.screens
 
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.layoutId
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.constraintlayout.compose.ChainStyle
-import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.constraintlayout.compose.ConstraintSet
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.ExperimentalWearMaterialApi
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.Stepper
 import androidx.wear.compose.material.Text
 import com.garan.wearwind.MinMaxHolder
 import com.garan.wearwind.R
@@ -40,10 +42,9 @@ fun SettingsDetailScreen(
     screenStarted: Boolean,
     settingType: SettingType,
     minMaxHolder: MinMaxHolder,
-    onIncrementClick: (SettingType, SettingLevel) -> Unit = { _, _ -> },
-    onDecrementClick: (SettingType, SettingLevel) -> Unit = { _, _ -> }
+    onClick: (SettingType, SettingLevel, Float) -> Unit = { _, _, _ -> }
 ) {
-    val context = LocalContext.current
+    val selected = remember { mutableStateOf(SettingLevel.MAX) }
 
     LaunchedEffect(screenStarted) {
         if (screenStarted) {
@@ -51,128 +52,80 @@ fun SettingsDetailScreen(
             uiState.isShowVignette.value = false
         }
     }
-    val constraintSet = ConstraintSet {
-        val minButton = createRefFor("minButton")
-        val maxButton = createRefFor("maxButton")
-        val minusButton = createRefFor("minusButton")
-        val plusButton = createRefFor("plusButton")
+    val currentValue = if (selected.value == SettingLevel.MIN) {
+        minMaxHolder.currentMin
+    } else {
+        minMaxHolder.currentMax
+    }.toFloat()
 
-        constrain(minButton) {
-            top.linkTo(parent.top)
-            bottom.linkTo(minusButton.top)
-            start.linkTo(parent.start)
-            end.linkTo(maxButton.start)
-        }
-        constrain(maxButton) {
-            top.linkTo(parent.top)
-            bottom.linkTo(plusButton.top)
-            start.linkTo(minButton.end)
-            end.linkTo(parent.end)
-        }
-        constrain(minusButton) {
-            top.linkTo(minButton.bottom)
-            bottom.linkTo(parent.bottom)
-            start.linkTo(parent.start)
-            end.linkTo(plusButton.start)
-        }
-        constrain(plusButton) {
-            top.linkTo(maxButton.bottom)
-            bottom.linkTo(parent.bottom)
-            start.linkTo(minusButton.end)
-            end.linkTo(parent.end)
-        }
-        createVerticalChain(
-            minButton, minusButton, chainStyle = ChainStyle.Packed
-        )
-        createVerticalChain(
-            maxButton, plusButton, chainStyle = ChainStyle.Packed
-        )
-        createHorizontalChain(
-            minButton, maxButton, chainStyle = ChainStyle.Packed
-        )
-        createHorizontalChain(
-            minusButton, plusButton, chainStyle = ChainStyle.Packed
-        )
+    val range = if (selected.value == SettingLevel.MIN) {
+        minMaxHolder.minRange()
+    } else {
+        minMaxHolder.maxRange()
     }
 
-    ConstraintLayout(constraintSet = constraintSet, modifier = Modifier.fillMaxSize()) {
-        val selected = remember { mutableStateOf(SettingLevel.MIN) }
-        Button(
-            modifier = Modifier
-                .layoutId("minButton")
-                .fillMaxSize(0.4f)
-                .padding(8.dp)
-                .then(
-                    if (selected.value == SettingLevel.MIN) {
-                        Modifier.border(2.dp, Colors.primary, CircleShape)
-                    } else Modifier
-                ),
-            colors = ButtonDefaults.secondaryButtonColors(),
-            onClick = {
-                selected.value = SettingLevel.MIN
-            }
+    Stepper(
+        value = currentValue,
+        onValueChange = { value ->
+            onClick(settingType, selected.value, value)
+        },
+        valueRange = range,
+        steps = ((range.endInclusive - range.start) / minMaxHolder.step).toInt() - 1
+    ) {
+        Row(
+            modifier = Modifier,
+            verticalAlignment = Alignment.Bottom
         ) {
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(style = SpanStyle(fontStyle = MaterialTheme.typography.display3.fontStyle)) {
-                        append("${minMaxHolder.currentMin}\n")
-                    }
-                    withStyle(style = SpanStyle(fontStyle = MaterialTheme.typography.body2.fontStyle)) {
-                        append(context.getString(R.string.min_small))
-                    }
+            CurrentValueButton(
+                currentValue = minMaxHolder.currentMin.toInt(),
+                metricLabel = stringResource(id = R.string.min_small),
+                isSelected = selected.value == SettingLevel.MIN,
+                buttonSize = 96.dp,
+                onClick = {
+                    selected.value = SettingLevel.MIN
+                }
+            )
+            CurrentValueButton(
+                currentValue = minMaxHolder.currentMax.toInt(),
+                metricLabel = stringResource(id = R.string.max_small),
+                isSelected = selected.value == SettingLevel.MAX,
+                buttonSize = 96.dp,
+                onClick = {
+                    selected.value = SettingLevel.MAX
                 }
             )
         }
-        Button(
-            modifier = Modifier
-                .layoutId("maxButton")
-                .fillMaxSize(0.4f)
-                .padding(8.dp)
-                .then(
-                    if (selected.value == SettingLevel.MAX) {
-                        Modifier.border(2.dp, Colors.primary, CircleShape)
-                    } else Modifier
-                ),
-            colors = ButtonDefaults.secondaryButtonColors(),
-            onClick = {
-                selected.value = SettingLevel.MAX
-            }
-        ) {
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(style = SpanStyle(fontStyle = MaterialTheme.typography.display3.fontStyle)) {
-                        append("${minMaxHolder.currentMax}\n")
-                    }
-                    withStyle(style = SpanStyle(fontStyle = MaterialTheme.typography.body2.fontStyle)) {
-                        append(context.getString(R.string.max_small))
-                    }
+    }
+}
+
+@Composable
+fun CurrentValueButton(
+    currentValue: Int,
+    metricLabel: String,
+    isSelected: Boolean,
+    buttonSize: Dp,
+    onClick: () -> Unit
+) {
+    val color = if (isSelected) Colors.primary else Color.Black
+    Button(
+        modifier = Modifier
+            .size(buttonSize)
+            .padding(8.dp)
+            .aspectRatio(1f)
+            .border(2.dp, color, CircleShape),
+        colors = ButtonDefaults.secondaryButtonColors(),
+        onClick = onClick
+    ) {
+        Text(
+            text = buildAnnotatedString {
+                withStyle(style = SpanStyle(fontStyle = MaterialTheme.typography.display3.fontStyle)) {
+                    append("$currentValue\n")
                 }
-            )
-        }
-        Button(
-            modifier = Modifier
-                .layoutId("minusButton")
-                .fillMaxSize(0.4f)
-                .padding(8.dp),
-            onClick = { onDecrementClick(settingType, selected.value) }
-        ) {
-            Text(
-                text = context.getString(R.string.minus),
-                style = MaterialTheme.typography.display3
-            )
-        }
-        Button(
-            modifier = Modifier
-                .layoutId("plusButton")
-                .fillMaxSize(0.4f)
-                .padding(8.dp),
-              onClick = { onIncrementClick(settingType, selected.value) }
-        ) {
-            Text(
-                text = context.getString(R.string.plus),
-                style = MaterialTheme.typography.display3
-            )
-        }
+                withStyle(style = SpanStyle(fontStyle = MaterialTheme.typography.body2.fontStyle)) {
+                    append(metricLabel)
+                }
+            }
+        )
     }
 }
 
