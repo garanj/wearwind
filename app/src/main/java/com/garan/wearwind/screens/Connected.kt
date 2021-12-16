@@ -133,7 +133,6 @@ fun SpeedAndHrLabel(
             horizontalAlignment = Alignment.End
         ) {
             Text(
-                modifier = Modifier.layoutId("speedLabel"),
                 text = "$speed",
                 color = Colors.primary,
                 style = metricDisplayTypography.mediumDisplayMetric,
@@ -141,7 +140,6 @@ fun SpeedAndHrLabel(
                 fontWeight = FontWeight.ExtraBold
             )
             Text(
-                modifier = Modifier.layoutId("hrLabel"),
                 text = "$hr",
                 color = Colors.secondary,
                 style = metricDisplayTypography.smallDisplayMetric,
