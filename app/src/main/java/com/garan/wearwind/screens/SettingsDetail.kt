@@ -34,6 +34,7 @@ import com.garan.wearwind.UiState
 import com.garan.wearwind.rememberUiState
 import com.garan.wearwind.ui.theme.Colors
 import com.garan.wearwind.ui.theme.WearwindTheme
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalWearMaterialApi::class)
 @Composable
@@ -77,7 +78,7 @@ fun SettingsDetailScreen(
             verticalAlignment = Alignment.Bottom
         ) {
             CurrentValueButton(
-                currentValue = minMaxHolder.currentMin.toInt(),
+                currentValue = minMaxHolder.currentMin.roundToInt(),
                 metricLabel = stringResource(id = R.string.min_small),
                 isSelected = selected.value == SettingLevel.MIN,
                 buttonSize = 96.dp,
@@ -86,7 +87,7 @@ fun SettingsDetailScreen(
                 }
             )
             CurrentValueButton(
-                currentValue = minMaxHolder.currentMax.toInt(),
+                currentValue = minMaxHolder.currentMax.roundToInt(),
                 metricLabel = stringResource(id = R.string.max_small),
                 isSelected = selected.value == SettingLevel.MAX,
                 buttonSize = 96.dp,
