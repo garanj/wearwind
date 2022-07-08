@@ -1,4 +1,4 @@
-package com.garan.wearwind.screens
+package com.garan.wearwind.screens.settingsdetail
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Row
@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -22,7 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.ButtonDefaults
-import androidx.wear.compose.material.ExperimentalWearMaterialApi
+import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Stepper
 import androidx.wear.compose.material.Text
@@ -31,27 +34,30 @@ import com.garan.wearwind.R
 import com.garan.wearwind.SettingLevel
 import com.garan.wearwind.SettingType
 import com.garan.wearwind.UiState
+import com.garan.wearwind.components.CurrentValueButton
 import com.garan.wearwind.rememberUiState
+import com.garan.wearwind.screens.WEAR_PREVIEW_API_LEVEL
+import com.garan.wearwind.screens.WEAR_PREVIEW_BACKGROUND_COLOR_BLACK
+import com.garan.wearwind.screens.WEAR_PREVIEW_DEVICE_HEIGHT_DP
+import com.garan.wearwind.screens.WEAR_PREVIEW_DEVICE_WIDTH_DP
+import com.garan.wearwind.screens.WEAR_PREVIEW_SHOW_BACKGROUND
+import com.garan.wearwind.screens.WEAR_PREVIEW_UI_MODE
 import com.garan.wearwind.ui.theme.Colors
 import com.garan.wearwind.ui.theme.WearwindTheme
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalWearMaterialApi::class)
 @Composable
 fun SettingsDetailScreen(
     uiState: UiState,
-    screenStarted: Boolean,
     settingType: SettingType,
     minMaxHolder: MinMaxHolder,
     onClick: (SettingType, SettingLevel, Float) -> Unit = { _, _, _ -> }
 ) {
     val selected = remember { mutableStateOf(SettingLevel.MAX) }
 
-    LaunchedEffect(screenStarted) {
-        if (screenStarted) {
-            uiState.isShowTime.value = false
-            uiState.isShowVignette.value = false
-        }
+    LaunchedEffect(Unit) {
+        uiState.isShowTime.value = false
+        uiState.isShowVignette.value = false
     }
     val currentValue = if (selected.value == SettingLevel.MIN) {
         minMaxHolder.currentMin
@@ -67,11 +73,23 @@ fun SettingsDetailScreen(
 
     Stepper(
         value = currentValue,
-        onValueChange = { value ->
+        onValueChange = { value: Float ->
             onClick(settingType, selected.value, value)
         },
         valueRange = range,
-        steps = ((range.endInclusive - range.start) / minMaxHolder.step).toInt() - 1
+        steps = ((range.endInclusive - range.start) / minMaxHolder.step).toInt() - 1,
+        increaseIcon = {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = stringResource(id = R.string.add)
+            )
+        },
+        decreaseIcon = {
+            Icon(
+                imageVector = Icons.Default.Remove,
+                contentDescription = stringResource(id = R.string.minus)
+            )
+        }
     ) {
         Row(
             modifier = Modifier,
@@ -99,37 +117,6 @@ fun SettingsDetailScreen(
     }
 }
 
-@Composable
-fun CurrentValueButton(
-    currentValue: Int,
-    metricLabel: String,
-    isSelected: Boolean,
-    buttonSize: Dp,
-    onClick: () -> Unit
-) {
-    val color = if (isSelected) Colors.primary else Color.Black
-    Button(
-        modifier = Modifier
-            .size(buttonSize)
-            .padding(8.dp)
-            .aspectRatio(1f)
-            .border(2.dp, color, CircleShape),
-        colors = ButtonDefaults.secondaryButtonColors(),
-        onClick = onClick
-    ) {
-        Text(
-            text = buildAnnotatedString {
-                withStyle(style = SpanStyle(fontStyle = MaterialTheme.typography.display3.fontStyle)) {
-                    append("$currentValue\n")
-                }
-                withStyle(style = SpanStyle(fontStyle = MaterialTheme.typography.body2.fontStyle)) {
-                    append(metricLabel)
-                }
-            }
-        )
-    }
-}
-
 @Preview(
     widthDp = WEAR_PREVIEW_DEVICE_WIDTH_DP,
     heightDp = WEAR_PREVIEW_DEVICE_HEIGHT_DP,
@@ -144,7 +131,6 @@ fun SettingDetailPreview() {
     WearwindTheme {
         SettingsDetailScreen(
             uiState,
-            true,
             SettingType.SPEED,
             MinMaxHolder()
         )

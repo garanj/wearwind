@@ -20,6 +20,8 @@ import android.hardware.SensorManager
 import android.os.Binder
 import android.os.IBinder
 import android.util.Log
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
@@ -28,10 +30,7 @@ import androidx.wear.ongoing.Status
 import com.punchthrough.ble.ConnectionEventListener
 import com.punchthrough.ble.ConnectionManager
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
@@ -46,7 +45,7 @@ class FanControlService : LifecycleService() {
     }
 
     @Inject
-    lateinit var preferences: Preferences
+    lateinit var preferences: SettingsRepository
 
     private val binder = LocalBinder()
     private var device: BluetoothDevice? = null
@@ -86,22 +85,22 @@ class FanControlService : LifecycleService() {
                     stopBleScan()
                     // TODO pause 500 ms?
                     this@FanControlService.device = this
-                    _fanConnectionStatus.value = FanConnectionStatus.CONNECTING
+                    fanConnectionStatus.value = FanConnectionStatus.CONNECTING
                     ConnectionManager.connect(this, this@FanControlService)
                 }
             }
         }
 
         override fun onScanFailed(errorCode: Int) {
-            _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
+            fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
         }
     }
 
     private val connectionEventListener by lazy {
         ConnectionEventListener().apply {
             onConnectionSetupComplete = { gatt ->
-                if (_fanConnectionStatus.value != FanConnectionStatus.CONNECTED) {
-                    _fanConnectionStatus.value = FanConnectionStatus.CONNECTED
+                if (fanConnectionStatus.value != FanConnectionStatus.CONNECTED) {
+                    fanConnectionStatus.value = FanConnectionStatus.CONNECTED
 
                     device = gatt.device
                     fanCharacteristic = characteristics.find { it.uuid == CHARACTERISTIC_UUID }
@@ -113,50 +112,61 @@ class FanControlService : LifecycleService() {
                         setSpeed(INITIAL_SPEED)
                     }
 
-                    if (preferences.getHrEnabled()) {
+                    if (hrEnabled.value) {
                         initializeHeartRateSensor()
                     }
                 }
             }
             onDisconnect = {
                 teardownHeartRateSensor()
-                _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
+                fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
             }
             onCharacteristicChanged = { _, characteristic ->
                 if (characteristic.uuid == CHARACTERISTIC_UUID) {
                     if (isFanSpeedResponse(characteristic.value)) {
-                        metrics.speedFromDevice.value = characteristic.value[2].toInt()
+                        speedFromDevice.value = characteristic.value[2].toInt()
                     }
                 }
             }
         }
     }
 
-    private val _fanConnectionStatus =
-        MutableStateFlow(FanConnectionStatus.DISCONNECTED)
-    val fanConnectionStatus: StateFlow<FanConnectionStatus> = _fanConnectionStatus
+    // Current status
+    val fanConnectionStatus = mutableStateOf(FanConnectionStatus.DISCONNECTED)
+    val speedToDevice: MutableStateFlow<Int> = MutableStateFlow(0)
+    private val speedFromDevice: MutableState<Int> = mutableStateOf(0)
+    val hr: MutableState<Int> = mutableStateOf(0)
 
-    private val _hrEnabled = MutableStateFlow(false)
-    val hrEnabled: StateFlow<Boolean> = _hrEnabled
+    // Current settings
+    private var speedSettings = MinMaxHolder()
+    private var hrSettings = MinMaxHolder()
+    private val hrEnabled: MutableState<Boolean> = mutableStateOf(false)
 
-    private val _speedSettings = MutableStateFlow(MinMaxHolder())
-    val speedSettings: StateFlow<MinMaxHolder> = _speedSettings
-
-    private val _hrSettings = MutableStateFlow(MinMaxHolder())
-    val hrSettings: StateFlow<MinMaxHolder> = _hrSettings
-
-    var metrics = FanMetrics()
 
     override fun onCreate() {
         super.onCreate()
         ConnectionManager.registerListener(connectionEventListener)
-        loadPreferences()
-
         lifecycleScope.launch {
-            metrics.speedToDevice.collect {
+            preferences.hrEnabled.collect {
+                hrEnabled.value = it
+            }
+        }
+        lifecycleScope.launch {
+            preferences.getSpeedMinMax().collect {
+                speedSettings = it
+            }
+        }
+        lifecycleScope.launch {
+            preferences.getHrMinMax().collect {
+                hrSettings = it
+            }
+        }
+        lifecycleScope.launch {
+            speedToDevice.collect {
                 setSpeed(it)
             }
         }
+
         Log.i(TAG, "Service onCreate")
     }
 
@@ -190,7 +200,7 @@ class FanControlService : LifecycleService() {
     }
 
     fun changeSpeed(speed: Int) {
-        metrics.speedToDevice.value = speed
+        speedToDevice.value = speed
     }
 
     private fun maybeStopService() {
@@ -234,7 +244,7 @@ class FanControlService : LifecycleService() {
 
         val ongoingActivityStatus = Status.Builder()
             .addTemplate(STATUS_TEMPLATE)
-            .addPart("speed", Status.TextPart("${metrics.speedToDevice.value}"))
+            .addPart("speed", Status.TextPart("${speedToDevice.value}"))
             .build()
         val ongoingActivity =
             OngoingActivity.Builder(applicationContext, NOTIFICATION_ID, notificationBuilder)
@@ -249,11 +259,11 @@ class FanControlService : LifecycleService() {
     }
 
     fun connectOrDisconnect() {
-        when (_fanConnectionStatus.value) {
+        when (fanConnectionStatus.value) {
             FanConnectionStatus.DISCONNECTED -> {
                 resetMetrics()
                 bleScanner.startScan(null, scanSettings, scanCallback)
-                _fanConnectionStatus.value = FanConnectionStatus.SCANNING
+                fanConnectionStatus.value = FanConnectionStatus.SCANNING
             }
             FanConnectionStatus.CONNECTED -> {
                 device?.let {
@@ -264,48 +274,12 @@ class FanControlService : LifecycleService() {
                 }
             }
             FanConnectionStatus.CONNECTING -> {
-                _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
+                fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
             }
             FanConnectionStatus.SCANNING -> {
                 stopBleScan()
-                _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
+                fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
             }
-        }
-    }
-
-    fun testConnectOrDisconnect() {
-        if (_fanConnectionStatus.value == FanConnectionStatus.DISCONNECTED) {
-            lifecycleScope.launch {
-                _fanConnectionStatus.value = FanConnectionStatus.CONNECTING
-                delay(5000)
-                _fanConnectionStatus.value = FanConnectionStatus.CONNECTED
-                delay(5000)
-                _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
-            }
-        } else if (_fanConnectionStatus.value == FanConnectionStatus.CONNECTED) {
-            _fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
-        }
-    }
-
-    fun toggleHrState() {
-        _hrEnabled.value = !_hrEnabled.value
-        _hrEnabled.value.let {
-            preferences.setHrEnabled(it)
-        }
-    }
-
-    private fun loadPreferences() {
-        _hrEnabled.value = preferences.getHrEnabled()
-        _speedSettings.value = preferences.getSpeedMinMax()
-        _hrSettings.value = preferences.getHrMinMax()
-    }
-
-    fun setThreshold(type: SettingType, level: SettingLevel, value: Float) {
-        preferences.setThreshold(type, level, value)
-        if (type == SettingType.HR) {
-            _hrSettings.value = preferences.getHrMinMax()
-        } else {
-            _speedSettings.value = preferences.getSpeedMinMax()
         }
     }
 
@@ -319,8 +293,8 @@ class FanControlService : LifecycleService() {
                 val heartRate = event.values.last().toInt()
                 if (heartRate > 0) {
                     val speed = getFanSpeedForHeartRate(heartRate)
-                    metrics.speedToDevice.value = speed
-                    metrics.hr.value = heartRate
+                    speedToDevice.value = speed
+                    hr.value = heartRate
                 }
             }
 
@@ -346,8 +320,8 @@ class FanControlService : LifecycleService() {
     private fun fanValue(value: Int) = byteArrayOf(2, value.toByte())
 
     private fun getFanSpeedForHeartRate(heartRate: Int): Int {
-        val hr = _hrSettings.value
-        val speed = _speedSettings.value
+        val hr = hrSettings
+        val speed = speedSettings
         return when {
             heartRate < hr.currentMin -> speed.currentMin.toInt()
             heartRate > hr.currentMax -> speed.currentMax.toInt()
@@ -367,13 +341,13 @@ class FanControlService : LifecycleService() {
     private fun isFanSpeedResponse(byteArray: ByteArray): Boolean {
         with(byteArray) {
             return size == 4 && get(0) == 0xFD.toByte() &&
-                get(1) == 0x01.toByte() && get(3) == 0x04.toByte()
+                    get(1) == 0x01.toByte() && get(3) == 0x04.toByte()
         }
     }
 
     private fun setSpeed(value: Int) {
         fanCharacteristic?.let { char ->
-            if (value != metrics.speedFromDevice.value) {
+            if (value != speedFromDevice.value) {
                 device?.let { dev ->
                     ConnectionManager.writeCharacteristic(dev, char, fanValue(value))
                 }
@@ -381,7 +355,7 @@ class FanControlService : LifecycleService() {
         }
     }
 
-    private fun resetMetrics() = metrics.apply {
+    private fun resetMetrics() {
         speedToDevice.value = 0
         speedFromDevice.value = 0
         hr.value = 0
@@ -404,12 +378,6 @@ class FanControlService : LifecycleService() {
         private val POWER_OFF = byteArrayOf(2, 0)
     }
 }
-
-data class FanMetrics(
-    val speedToDevice: MutableStateFlow<Int> = MutableStateFlow(0),
-    val speedFromDevice: MutableStateFlow<Int> = MutableStateFlow(0),
-    val hr: MutableStateFlow<Int> = MutableStateFlow(0)
-)
 
 enum class SettingType {
     HR,

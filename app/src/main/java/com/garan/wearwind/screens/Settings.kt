@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -53,12 +52,13 @@ fun SettingsEntry(settingsItem: SettingsItem) = when (settingsItem) {
         modifier = Modifier
             .fillMaxWidth(),
         textAlign = TextAlign.Center,
-        text = LocalContext.current.getString(settingsItem.labelId),
+        text = stringResource(settingsItem.labelId),
         style = MaterialTheme.typography.title2
     )
     is SettingsItem.SettingsButton -> Chip(
+        modifier = Modifier.fillMaxWidth(),
         onClick = settingsItem.onClick,
-        label = { Text(LocalContext.current.getString(settingsItem.labelId)) },
+        label = { Text(stringResource(settingsItem.labelId)) },
         icon = {
             Icon(
                 imageVector = settingsItem.imageVector,

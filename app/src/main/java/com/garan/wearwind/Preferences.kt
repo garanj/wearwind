@@ -1,35 +1,28 @@
 package com.garan.wearwind
 
-import android.content.Context
-import androidx.core.content.edit
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.google.gson.Gson
-import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class Preferences @Inject constructor(@ApplicationContext context: Context) {
-    private val HR_MIN_MAX_KEY = "hr_min_max_key"
-    private val SPEED_MIN_MAX_KEY = "speed_min_max_key"
-    private val HR_KEY = "hr"
-    private val PREFERENCES_KEY = "preferences"
-
-    private val prefs = context.getSharedPreferences(PREFERENCES_KEY, Context.MODE_PRIVATE)
-
+class SettingsRepository @Inject constructor(
+    private val dataStore: DataStore<Preferences>
+) {
     private val DEFAULT_MIN_MAX = mapOf(
         HR_MIN_MAX_KEY to MinMaxHolder(0.0f, 220.0f, 80.0f, 160.0f, 5),
         SPEED_MIN_MAX_KEY to MinMaxHolder(0.0f, 100.0f, 25.0f, 60.0f, 5)
     )
 
-    private fun setMinMax(key: String, minMax: MinMaxHolder) = prefs.edit(commit = true) {
-        val json = Gson().toJson(minMax)
-        putString(key, json)
-    }
-
-    fun setThreshold(type: SettingType, level: SettingLevel, value: Float) {
+    suspend fun setThreshold(type: SettingType, level: SettingLevel, value: Float) {
         when (type) {
             SettingType.HR -> {
-                val settings = getHrMinMax()
+                val settings = getHrMinMax().first()
                 when (level) {
                     SettingLevel.MIN -> settings.currentMin = value
                     SettingLevel.MAX -> settings.currentMax = value
@@ -37,7 +30,7 @@ class Preferences @Inject constructor(@ApplicationContext context: Context) {
                 setHrMinMax(settings)
             }
             SettingType.SPEED -> {
-                val settings = getSpeedMinMax()
+                val settings = getSpeedMinMax().first()
                 when (level) {
                     SettingLevel.MIN -> settings.currentMin = value
                     SettingLevel.MAX -> settings.currentMax = value
@@ -47,23 +40,45 @@ class Preferences @Inject constructor(@ApplicationContext context: Context) {
         }
     }
 
-    private fun setHrMinMax(hrMinMax: MinMaxHolder) = setMinMax(HR_MIN_MAX_KEY, hrMinMax)
-    private fun setSpeedMinMax(hrMinMax: MinMaxHolder) = setMinMax(SPEED_MIN_MAX_KEY, hrMinMax)
-
-    private fun getMinMax(key: String): MinMaxHolder {
-        val json = prefs.getString(key, null)
-        json?.let {
-            return Gson().fromJson(json, MinMaxHolder::class.java)
-        }
-        return DEFAULT_MIN_MAX[key]!!
-    }
-
     fun getHrMinMax() = getMinMax(HR_MIN_MAX_KEY)
     fun getSpeedMinMax() = getMinMax(SPEED_MIN_MAX_KEY)
 
-    fun getHrEnabled() = prefs.getBoolean(HR_KEY, false)
-    fun setHrEnabled(isEnabled: Boolean) =
-        prefs.edit(commit = true) { putBoolean(HR_KEY, isEnabled) }
+    private fun getMinMax(key: String): Flow<MinMaxHolder> = dataStore.data.map { prefs ->
+        val json = prefs[stringPreferencesKey(key)]
+        if (json == null) {
+            DEFAULT_MIN_MAX[key]!!
+        } else {
+            Gson().fromJson(json, MinMaxHolder::class.java)
+        }
+    }
+
+    private suspend fun setHrMinMax(hrMinMax: MinMaxHolder) = setMinMax(HR_MIN_MAX_KEY, hrMinMax)
+    private suspend fun setSpeedMinMax(hrMinMax: MinMaxHolder) =
+        setMinMax(SPEED_MIN_MAX_KEY, hrMinMax)
+
+    private suspend fun setMinMax(key: String, minMax: MinMaxHolder) {
+        val json = Gson().toJson(minMax)
+        dataStore.edit { prefs ->
+            prefs[stringPreferencesKey(key)] = json
+        }
+    }
+
+    val hrEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[booleanPreferencesKey(HR_KEY)] ?: false
+    }
+
+    suspend fun setHrEnabled(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[booleanPreferencesKey(HR_KEY)] = enabled
+        }
+    }
+
+    companion object {
+        const val PREFERENCES_FILENAME = "wearwind_prefs"
+        private const val HR_MIN_MAX_KEY = "hr_min_max_key"
+        private const val SPEED_MIN_MAX_KEY = "speed_min_max_key"
+        private const val HR_KEY = "hr"
+    }
 }
 
 class MinMaxHolder(
@@ -79,11 +94,15 @@ class MinMaxHolder(
 
     var currentMin: Float
         get() = _currentMin
-        set(value) { _currentMin = value }
+        set(value) {
+            _currentMin = value
+        }
 
     var currentMax: Float
         get() = _currentMax
-        set(value) { _currentMax = value }
+        set(value) {
+            _currentMax = value
+        }
 
     fun minRange(): ClosedFloatingPointRange<Float> {
         return absMin..(_currentMax - minInterval)

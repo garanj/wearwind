@@ -36,6 +36,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 
 private const val GATT_MIN_MTU_SIZE = 23
+
 /** Maximum BLE MTU size as defined in gatt_api.h. */
 private const val GATT_MAX_MTU_SIZE = 517
 
@@ -51,7 +52,9 @@ object ConnectionManager {
         deviceGattMap[device]?.services
 
     fun registerListener(listener: ConnectionEventListener) {
-        if (listeners.map { it.get() }.contains(listener)) { return }
+        if (listeners.map { it.get() }.contains(listener)) {
+            return
+        }
         listeners.add(WeakReference(listener))
         listeners = listeners.filter { it.get() != null }.toMutableSet()
         Log.d(TAG, "Added listener $listener, ${listeners.size} listeners total")
@@ -117,7 +120,10 @@ object ConnectionManager {
         } else if (!device.isConnected()) {
             Log.e(TAG, "Not connected to ${device.address}, cannot enable notifications")
         } else if (!characteristic.isIndicatable() && !characteristic.isNotifiable()) {
-            Log.e(TAG, "Characteristic ${characteristic.uuid} doesn't support notifications/indications")
+            Log.e(
+                TAG,
+                "Characteristic ${characteristic.uuid} doesn't support notifications/indications"
+            )
         }
     }
 
@@ -177,7 +183,10 @@ object ConnectionManager {
         // Check BluetoothGatt availability for other operations
         val gatt = deviceGattMap[operation.device]
             ?: this@ConnectionManager.run {
-                Log.e(TAG, "Not connected to ${operation.device.address}! Aborting $operation operation.")
+                Log.e(
+                    TAG,
+                    "Not connected to ${operation.device.address}! Aborting $operation operation."
+                )
                 signalEndOfOperation()
                 return
             }
@@ -241,7 +250,10 @@ object ConnectionManager {
 
                     characteristic.getDescriptor(cccdUuid)?.let { cccDescriptor ->
                         if (!gatt.setCharacteristicNotification(characteristic, true)) {
-                            Log.e(TAG, "setCharacteristicNotification failed for ${characteristic.uuid}")
+                            Log.e(
+                                TAG,
+                                "setCharacteristicNotification failed for ${characteristic.uuid}"
+                            )
                             signalEndOfOperation()
                             return
                         }
@@ -262,7 +274,10 @@ object ConnectionManager {
                     val cccdUuid = UUID.fromString(CCC_DESCRIPTOR_UUID)
                     characteristic.getDescriptor(cccdUuid)?.let { cccDescriptor ->
                         if (!gatt.setCharacteristicNotification(characteristic, false)) {
-                            Log.e(TAG, "setCharacteristicNotification failed for ${characteristic.uuid}")
+                            Log.e(
+                                TAG,
+                                "setCharacteristicNotification failed for ${characteristic.uuid}"
+                            )
                             signalEndOfOperation()
                             return
                         }
@@ -300,7 +315,10 @@ object ConnectionManager {
                     teardownConnection(gatt.device)
                 }
             } else {
-                Log.e(TAG, "onConnectionStateChange: status $status encountered for $deviceAddress!")
+                Log.e(
+                    TAG,
+                    "onConnectionStateChange: status $status encountered for $deviceAddress!"
+                )
                 if (pendingOperation is Connect) {
                     signalEndOfOperation()
                 }
@@ -344,7 +362,12 @@ object ConnectionManager {
                 when (status) {
                     BluetoothGatt.GATT_SUCCESS -> {
                         Log.i(TAG, "Read characteristic $uuid | value: ${value.toHexString()}")
-                        listeners.forEach { it.get()?.onCharacteristicRead?.invoke(gatt.device, this) }
+                        listeners.forEach {
+                            it.get()?.onCharacteristicRead?.invoke(
+                                gatt.device,
+                                this
+                            )
+                        }
                     }
                     BluetoothGatt.GATT_READ_NOT_PERMITTED -> {
                         Log.e(TAG, "Read not permitted for $uuid!")
@@ -369,7 +392,12 @@ object ConnectionManager {
                 when (status) {
                     BluetoothGatt.GATT_SUCCESS -> {
                         Log.i(TAG, "Wrote to characteristic $uuid | value: ${value.toHexString()}")
-                        listeners.forEach { it.get()?.onCharacteristicWrite?.invoke(gatt.device, this) }
+                        listeners.forEach {
+                            it.get()?.onCharacteristicWrite?.invoke(
+                                gatt.device,
+                                this
+                            )
+                        }
                     }
                     BluetoothGatt.GATT_WRITE_NOT_PERMITTED -> {
                         Log.e(TAG, "Write not permitted for $uuid!")
@@ -433,7 +461,12 @@ object ConnectionManager {
                         if (isCccd()) {
                             onCccdWrite(gatt, value, characteristic)
                         } else {
-                            listeners.forEach { it.get()?.onDescriptorWrite?.invoke(gatt.device, this) }
+                            listeners.forEach {
+                                it.get()?.onDescriptorWrite?.invoke(
+                                    gatt.device,
+                                    this
+                                )
+                            }
                         }
                     }
                     BluetoothGatt.GATT_WRITE_NOT_PERMITTED -> {
@@ -462,7 +495,7 @@ object ConnectionManager {
             val charUuid = characteristic.uuid
             val notificationsEnabled =
                 value.contentEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) ||
-                    value.contentEquals(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
+                        value.contentEquals(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
             val notificationsDisabled =
                 value.contentEquals(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)
 
@@ -497,10 +530,11 @@ object ConnectionManager {
             with(intent) {
                 if (action == BluetoothDevice.ACTION_BOND_STATE_CHANGED) {
                     val device = getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
-                    val previousBondState = getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, -1)
+                    val previousBondState =
+                        getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, -1)
                     val bondState = getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1)
                     val bondTransition = "${previousBondState.toBondStateDescription()} to " +
-                        bondState.toBondStateDescription()
+                            bondState.toBondStateDescription()
                     Log.w(TAG, "${device?.address} bond state changed | $bondTransition")
                 }
             }

@@ -4,31 +4,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.wear.compose.material.ExperimentalWearMaterialApi
-import com.garan.wearwind.FanControlService
 import com.garan.wearwind.R
-import com.garan.wearwind.Screen
-import com.garan.wearwind.UiState
-import com.garan.wearwind.rememberUiState
 
-@OptIn(ExperimentalWearMaterialApi::class)
 @Composable
-fun WearwindLoadingMessage(
-    uiState: UiState,
-    service: FanControlService?
-) {
-    LaunchedEffect(service) {
-        service?.let {
-            uiState.navHostController.popBackStack(Screen.LOADING.route, true)
-            uiState.navHostController.navigate(Screen.CONNECT.route)
-        }
-    }
+fun WearwindLoadingMessage() {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -53,9 +37,5 @@ fun WearwindLoadingMessage(
 )
 @Composable
 fun LoadingScreenPreview() {
-    val uiState = rememberUiState()
-    WearwindLoadingMessage(
-        uiState = uiState,
-        service = null
-    )
+    WearwindLoadingMessage()
 }
