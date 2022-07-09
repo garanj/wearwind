@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.Flow
@@ -73,11 +74,24 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    val toastCount: Flow<Int> = dataStore.data.map { prefs ->
+        prefs[intPreferencesKey(TOAST_COUNT_KEY)] ?: 0
+    }
+
+    suspend fun incrementShowToast() {
+        dataStore.edit { prefs ->
+            prefs[intPreferencesKey(TOAST_COUNT_KEY)] =
+                (prefs[intPreferencesKey(TOAST_COUNT_KEY)] ?: 0) + 1
+        }
+    }
+
     companion object {
         const val PREFERENCES_FILENAME = "wearwind_prefs"
         private const val HR_MIN_MAX_KEY = "hr_min_max_key"
         private const val SPEED_MIN_MAX_KEY = "speed_min_max_key"
         private const val HR_KEY = "hr"
+        private const val TOAST_COUNT_KEY = "toast_count"
+        const val TOAST_MAX = 2
     }
 }
 

@@ -113,7 +113,8 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
             composable(Screen.FAN.route) {
                 val viewModel = hiltViewModel<FanViewModel>()
                 val serviceState by viewModel.serviceState
-                val hrEnabled by viewModel.hrEnabled.collectAsState(initial = false)
+                val hrEnabled by viewModel.hrEnabled.collectAsState(false)
+                val toastCount by viewModel.toastCount.collectAsState(initial = 0)
                 FanScreen(
                     uiState = uiState,
                     serviceState = serviceState,
@@ -123,13 +124,17 @@ class FanActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvid
                     onSetSpeed = { speed ->
                         viewModel.setFanSpeed(speed)
                     },
-                    onDisconnectSwipe = {
+                    onDisconnect = {
                         viewModel.disconnectFromFan()
                     },
                     onHrClick = { enabled ->
                         viewModel.setHrEnabled(enabled)
                     },
-                    hrEnabled = hrEnabled
+                    hrEnabled = hrEnabled,
+                    shouldShowToast = (toastCount < SettingsRepository.TOAST_MAX),
+                    onIncrementToastCount = {
+                        viewModel.incrementToastCount()
+                    }
                 )
             }
             composable(

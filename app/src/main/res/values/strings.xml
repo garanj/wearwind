@@ -19,7 +19,8 @@
     <string name="minus">Decrease</string>
 
     <!-- Connected screen -->
-    <string name="waiting_for_hr">"Waiting for HR…"</string>
+    <string name="waiting_for_hr">Waiting for HR…</string>
+    <string name="long_press">Long press to stop</string>
 
     <!-- About screen -->
     <string name="about_toast_msg">Opening on phone…</string>

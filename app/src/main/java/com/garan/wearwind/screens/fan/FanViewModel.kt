@@ -31,20 +31,6 @@ class FanViewModel @Inject constructor(
     val serviceState: MutableState<ServiceState> = mutableStateOf(ServiceState.Disconnected)
     var bound = mutableStateOf(false)
 
-    fun connectToFan() = fanControlService?.connectOrDisconnect()
-
-    fun setFanSpeed(speed: Int) = fanControlService?.changeSpeed(speed)
-
-    fun disconnectFromFan() = fanControlService?.connectOrDisconnect()
-
-    fun setHrEnabled(isEnabled: Boolean) {
-        viewModelScope.launch {
-            preferences.setHrEnabled(isEnabled)
-        }
-    }
-
-    val hrEnabled = preferences.hrEnabled
-
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as FanControlService.LocalBinder
@@ -71,6 +57,28 @@ class FanViewModel @Inject constructor(
     init {
         if (!bound.value) {
             createService()
+        }
+    }
+
+    val hrEnabled = preferences.hrEnabled
+
+    val toastCount = preferences.toastCount
+
+    fun connectToFan() = fanControlService?.connectOrDisconnect()
+
+    fun setFanSpeed(speed: Int) = fanControlService?.changeSpeed(speed)
+
+    fun disconnectFromFan() = fanControlService?.connectOrDisconnect()
+
+    fun setHrEnabled(isEnabled: Boolean) {
+        viewModelScope.launch {
+            preferences.setHrEnabled(isEnabled)
+        }
+    }
+
+    fun incrementToastCount() {
+        viewModelScope.launch {
+            preferences.incrementShowToast()
         }
     }
 

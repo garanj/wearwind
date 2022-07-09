@@ -22,7 +22,6 @@ import com.garan.wearwind.screens.WEAR_PREVIEW_SHOW_BACKGROUND
 import com.garan.wearwind.screens.WEAR_PREVIEW_UI_MODE
 import com.garan.wearwind.ui.theme.MetricTypography
 import com.garan.wearwind.ui.theme.WearwindTheme
-import java.lang.Math.abs
 
 @Composable
 fun SpeedLabel(

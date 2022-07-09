@@ -16,9 +16,11 @@ fun FanScreen(
     serviceState: ServiceState,
     onConnectClick: () -> Unit,
     onSetSpeed: (Int) -> Unit,
-    onDisconnectSwipe: () -> Unit,
+    onDisconnect: () -> Unit,
     onHrClick: (Boolean) -> Unit,
-    hrEnabled: Boolean
+    hrEnabled: Boolean,
+    shouldShowToast: Boolean,
+    onIncrementToastCount: () -> Unit
 ) {
     // ServiceState is a container that represents whether the ForgroundService has been connected
     // to in the viewModel or not.
@@ -35,7 +37,9 @@ fun FanScreen(
                         hr = hr,
                         hrEnabled = hrEnabled,
                         onSetSpeed = onSetSpeed,
-                        onDisconnectSwipe = onDisconnectSwipe
+                        onDisconnect = onDisconnect,
+                        shouldShowToast = shouldShowToast,
+                        incrementToastCount = onIncrementToastCount
                     )
                 }
                 FanControlService.FanConnectionStatus.SCANNING,
