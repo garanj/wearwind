@@ -30,6 +30,7 @@ import androidx.wear.ongoing.Status
 import com.punchthrough.ble.ConnectionEventListener
 import com.punchthrough.ble.ConnectionManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
