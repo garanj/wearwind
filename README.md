@@ -50,3 +50,7 @@ This code can be seen in the `com.punchthrough.ble` package in the repository.
 [headwind]: https://www.wahoofitness.com/devices/bike-trainers/kickr-accessories/kickr-headwind
 [starter]: https://github.com/PunchThrough/ble-starter-android
 [punchthrough-license]: https://github.com/PunchThrough/ble-starter-android/blob/master/LICENSE
+
+## Privacy policy
+
+This app collects no personal data of any kind.
