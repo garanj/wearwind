@@ -84,7 +84,7 @@ class FanViewModel @Inject constructor(
 
     private fun createService() {
         Intent(applicationContext, FanControlService::class.java).also { intent ->
-            applicationContext.startForegroundService(intent)
+            applicationContext.startService(intent)
             applicationContext.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         }
     }
