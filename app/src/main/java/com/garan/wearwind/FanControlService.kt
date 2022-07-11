@@ -13,6 +13,7 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -30,7 +31,6 @@ import androidx.wear.ongoing.Status
 import com.punchthrough.ble.ConnectionEventListener
 import com.punchthrough.ble.ConnectionManager
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -61,6 +61,7 @@ class FanControlService : LifecycleService() {
     }
 
     private var started = false
+    private var foreground = false
 
     private val sensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
     private val sensor by lazy { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) }
@@ -121,6 +122,7 @@ class FanControlService : LifecycleService() {
             onDisconnect = {
                 teardownHeartRateSensor()
                 fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
+                disableForeground()
             }
             onCharacteristicChanged = { _, characteristic ->
                 if (characteristic.uuid == CHARACTERISTIC_UUID) {
@@ -175,8 +177,6 @@ class FanControlService : LifecycleService() {
         super.onStartCommand(intent, flags, startId)
 
         if (!started) {
-            enableForegroundService()
-
             started = true
         }
         Log.i(TAG, "service onStartCommand")
@@ -213,8 +213,18 @@ class FanControlService : LifecycleService() {
     }
 
     private fun enableForegroundService() {
-        createNotificationChannel()
-        startForeground(1, buildNotification())
+        if (!foreground) {
+            createNotificationChannel()
+            startForeground(1, buildNotification(), FOREGROUND_SERVICE_TYPE_LOCATION)
+            foreground = true
+        }
+    }
+
+    private fun disableForeground() {
+        if (foreground) {
+            stopForeground(true)
+            foreground = false
+        }
     }
 
     private fun createNotificationChannel() {
@@ -263,10 +273,12 @@ class FanControlService : LifecycleService() {
         when (fanConnectionStatus.value) {
             FanConnectionStatus.DISCONNECTED -> {
                 resetMetrics()
+                enableForegroundService()
                 bleScanner.startScan(null, scanSettings, scanCallback)
                 fanConnectionStatus.value = FanConnectionStatus.SCANNING
             }
             FanConnectionStatus.CONNECTED -> {
+                disableForeground()
                 device?.let {
                     fanCharacteristic?.let { characteristic ->
                         ConnectionManager.writeCharacteristic(it, characteristic, POWER_OFF)
@@ -275,9 +287,11 @@ class FanControlService : LifecycleService() {
                 }
             }
             FanConnectionStatus.CONNECTING -> {
+                disableForeground()
                 fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
             }
             FanConnectionStatus.SCANNING -> {
+                disableForeground()
                 stopBleScan()
                 fanConnectionStatus.value = FanConnectionStatus.DISCONNECTED
             }
